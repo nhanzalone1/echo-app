@@ -1,40 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Mic, Moon, Play, CheckCircle, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Mic, Moon, Play, CheckCircle, Trash2, Image as ImageIcon, Plus } from 'lucide-react';
 
 export default function App() {
   const [mode, setMode] = useState('night'); 
+  const fileInputRef = useRef(null); // Reference to the hidden file input
   
-  // 1. LOAD from Memory (or use defaults if empty)
+  // Load from memory
   const [thoughts, setThoughts] = useState(() => {
     const saved = localStorage.getItem('nightShiftThoughts');
-    if (saved) {
-      return JSON.parse(saved);
-    } else {
-      return [
-        { id: 1, text: "I need to stop waiting. I want to build a finance empire.", time: "3:14 AM", ignited: false },
-        { id: 2, text: "Read 20 pages of 'The Intelligent Investor'. No excuses.", time: "2:45 AM", ignited: true }
-      ];
-    }
+    return saved ? JSON.parse(saved) : [
+      { id: 1, text: "I need to stop waiting. I want to build a finance empire.", time: "3:14 AM", ignited: false, type: 'text' }
+    ];
   });
 
   const [currentInput, setCurrentInput] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null); // Temporary holder for the image you are about to post
 
-  // 2. SAVE to Memory (Every time 'thoughts' changes)
+  // Save to memory
   useEffect(() => {
     localStorage.setItem('nightShiftThoughts', JSON.stringify(thoughts));
   }, [thoughts]);
 
+  // Handle Image Selection
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Create a temporary URL to view the image instantly
+      const imageUrl = URL.createObjectURL(file);
+      setSelectedImage(imageUrl);
+    }
+  };
+
   const handleCapture = () => {
-    if (!currentInput.trim()) return;
+    if (!currentInput.trim() && !selectedImage) return;
+    
     const newThought = {
       id: Date.now(),
       text: currentInput,
+      image: selectedImage, // Attach the image
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      ignited: false
+      ignited: false,
+      type: selectedImage ? 'vision' : 'text'
     };
+    
     setThoughts([newThought, ...thoughts]);
     setCurrentInput('');
-    // alert("Vibe Captured. Sleep well."); // Removed alert for smoother flow
+    setSelectedImage(null); // Clear the preview
   };
 
   const toggleIgnite = (id) => {
@@ -43,73 +54,71 @@ export default function App() {
     ));
   };
 
-  // New Feature: Delete a thought
   const deleteThought = (id) => {
     setThoughts(thoughts.filter(t => t.id !== id));
   };
 
-  // --- NIGHT MODE ---
+  // --- NIGHT MODE (Vision Board Style) ---
   if (mode === 'night') {
     return (
-      <div style={{ 
-        backgroundColor: '#09090b', 
-        color: 'white', 
-        minHeight: '100vh', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        padding: '20px'
-      }}>
+      <div style={{ backgroundColor: '#09090b', color: 'white', minHeight: '100vh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         
-        <button 
-          onClick={() => setMode('morning')} 
-          style={{ position: 'absolute', top: '16px', right: '16px', border: '1px solid #333', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', color: '#888', background: 'transparent', cursor: 'pointer' }}
-        >
+        <button onClick={() => setMode('morning')} style={{ position: 'absolute', top: '16px', right: '16px', border: '1px solid #333', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', color: '#888', background: 'transparent' }}>
           Skip to Morning ☀️
         </button>
 
         <div style={{ maxWidth: '400px', width: '100%', display: 'flex', flexDirection: 'column', gap: '30px' }}>
           
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.8 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.8, marginBottom: '10px' }}>
                 <Moon size={48} color="#a855f7" />
             </div>
             <h1 style={{ fontSize: '32px', fontWeight: 'bold', background: 'linear-gradient(to right, #c084fc, #9ca3af)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>
-              The Night Shift.
+              Vision Log.
             </h1>
-            <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>Capture the person you want to be.</p>
+            <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>Capture the things that drive you.</p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            
+            {/* Image Preview Area */}
+            {selectedImage && (
+              <div style={{ position: 'relative', width: '100%', height: '200px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #333' }}>
+                <img src={selectedImage} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button onClick={() => setSelectedImage(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer' }}>X</button>
+              </div>
+            )}
+
             <textarea
               value={currentInput}
               onChange={(e) => setCurrentInput(e.target.value)}
-              placeholder="What is keeping you awake?"
-              style={{ 
-                width: '100%', 
-                height: '150px', 
-                backgroundColor: '#1a1a1a', 
-                border: '1px solid #333', 
-                color: 'white', 
-                outline: 'none', 
-                borderRadius: '12px', 
-                padding: '16px', 
-                fontSize: '16px',
-                resize: 'none',
-                boxSizing: 'border-box'
-              }}
+              placeholder="What did you just see? Why do you want it?"
+              style={{ width: '100%', height: '100px', backgroundColor: '#1a1a1a', border: '1px solid #333', color: 'white', outline: 'none', borderRadius: '12px', padding: '16px', fontSize: '16px', resize: 'none' }}
             />
             
+            {/* Hidden File Input */}
+            <input 
+              type="file" 
+              accept="image/*" 
+              ref={fileInputRef} 
+              onChange={handleImageSelect} 
+              style={{ display: 'none' }} 
+            />
+
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button style={{ backgroundColor: '#1a1a1a', color: '#888', border: 'none', borderRadius: '50%', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <Mic size={24} />
+              {/* Camera Button */}
+              <button 
+                onClick={() => fileInputRef.current.click()}
+                style={{ backgroundColor: '#1a1a1a', color: '#a855f7', border: '1px solid #333', borderRadius: '12px', width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              >
+                <ImageIcon size={24} />
               </button>
+              
               <button 
                 onClick={handleCapture}
-                style={{ flex: 1, backgroundColor: 'white', color: 'black', fontWeight: 'bold', border: 'none', borderRadius: '30px', cursor: 'pointer', fontSize: '16px' }}
+                style={{ flex: 1, backgroundColor: 'white', color: 'black', fontWeight: 'bold', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px' }}
               >
-                Capture Vibe
+                Capture Vision
               </button>
             </div>
           </div>
@@ -118,74 +127,46 @@ export default function App() {
     );
   }
 
-  // --- MORNING MODE ---
+  // --- MORNING MODE (The Feed) ---
   return (
-    <div style={{ 
-      backgroundColor: '#ffffff', 
-      color: 'black', 
-      minHeight: '100vh', 
-      padding: '24px', 
-      display: 'flex', 
-      flexDirection: 'column',
-      boxSizing: 'border-box'
-    }}>
-      
-       <button 
-          onClick={() => setMode('night')} 
-          style={{ position: 'absolute', top: '16px', right: '16px', border: '1px solid #ddd', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', color: '#666', background: 'transparent', cursor: 'pointer' }}
-        >
-          Back to Night 🌙
+    <div style={{ backgroundColor: '#ffffff', color: 'black', minHeight: '100vh', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+       <button onClick={() => setMode('night')} style={{ position: 'absolute', top: '16px', right: '16px', border: '1px solid #ddd', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', color: '#666', background: 'transparent' }}>
+          Back to Capture 🌙
         </button>
 
       <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '30px' }}>
         <div style={{ marginTop: '40px' }}>
-          <h1 style={{ fontSize: '36px', fontWeight: '800', lineHeight: '1.1', margin: '0 0 10px 0' }}>Cold Light<br/>of Day.</h1>
-          <p style={{ color: '#6b7280', margin: 0 }}>Your past self left you these notes.</p>
+          <h1 style={{ fontSize: '36px', fontWeight: '800', lineHeight: '1.1', margin: '0 0 10px 0' }}>The<br/>Fuel.</h1>
+          <p style={{ color: '#6b7280', margin: 0 }}>The things you are working for.</p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {thoughts.map((thought) => (
-            <div key={thought.id} 
-                 style={{ 
-                   backgroundColor: thought.ignited ? '#f0fdf4' : '#f9fafb', 
-                   border: `1px solid ${thought.ignited ? '#bbf7d0' : '#f3f4f6'}`,
-                   padding: '20px',
+            <div key={thought.id} style={{ 
+                   backgroundColor: '#f9fafb', 
+                   border: '1px solid #f3f4f6',
                    borderRadius: '16px',
-                   transition: 'all 0.2s',
-                   position: 'relative' 
+                   overflow: 'hidden',
+                   paddingBottom: '16px'
                  }}>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#9ca3af', backgroundColor: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #f3f4f6' }}>
-                  {thought.time}
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    {thought.ignited && <CheckCircle size={20} color="#22c55e" />}
-                    <button onClick={() => deleteThought(thought.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
-                        <Trash2 size={16} />
-                    </button>
+              {/* If there is an image, show it full width */}
+              {thought.image && (
+                <div style={{ width: '100%', height: '250px', overflow: 'hidden' }}>
+                    <img src={thought.image} alt="Vision" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
-              </div>
-              
-              <p style={{ 
-                   fontSize: '18px', 
-                   fontWeight: '500', 
-                   margin: 0,
-                   textDecoration: thought.ignited ? 'line-through' : 'none',
-                   color: thought.ignited ? '#9ca3af' : '#111827'
-                 }}>
-                "{thought.text}"
-              </p>
-
-              {!thought.ignited && (
-                <button 
-                  onClick={() => toggleIgnite(thought.id)}
-                  style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  <Play size={16} fill="currentColor" />
-                  Replay Vibe & Ignite
-                </button>
               )}
+
+              <div style={{ padding: '0 20px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#9ca3af', fontFamily: 'monospace' }}>{thought.time}</span>
+                    <button onClick={() => deleteThought(thought.id)} style={{ background: 'none', border: 'none', color: '#ef4444' }}><Trash2 size={16} /></button>
+                </div>
+                
+                <p style={{ fontSize: '18px', fontWeight: '500', margin: 0, color: '#111827' }}>
+                  "{thought.text}"
+                </p>
+              </div>
             </div>
           ))}
         </div>
