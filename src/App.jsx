@@ -1,13 +1,28 @@
-import React, { useState } from 'react';
-import { Mic, Moon, Play, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mic, Moon, Play, CheckCircle, Trash2 } from 'lucide-react';
 
 export default function App() {
   const [mode, setMode] = useState('night'); 
-  const [thoughts, setThoughts] = useState([
-    { id: 1, text: "I need to stop waiting. I want to build a finance empire.", time: "3:14 AM", ignited: false },
-    { id: 2, text: "Read 20 pages of 'The Intelligent Investor'. No excuses.", time: "2:45 AM", ignited: true }
-  ]);
+  
+  // 1. LOAD from Memory (or use defaults if empty)
+  const [thoughts, setThoughts] = useState(() => {
+    const saved = localStorage.getItem('nightShiftThoughts');
+    if (saved) {
+      return JSON.parse(saved);
+    } else {
+      return [
+        { id: 1, text: "I need to stop waiting. I want to build a finance empire.", time: "3:14 AM", ignited: false },
+        { id: 2, text: "Read 20 pages of 'The Intelligent Investor'. No excuses.", time: "2:45 AM", ignited: true }
+      ];
+    }
+  });
+
   const [currentInput, setCurrentInput] = useState('');
+
+  // 2. SAVE to Memory (Every time 'thoughts' changes)
+  useEffect(() => {
+    localStorage.setItem('nightShiftThoughts', JSON.stringify(thoughts));
+  }, [thoughts]);
 
   const handleCapture = () => {
     if (!currentInput.trim()) return;
@@ -19,7 +34,7 @@ export default function App() {
     };
     setThoughts([newThought, ...thoughts]);
     setCurrentInput('');
-    alert("Vibe Captured. Sleep well.");
+    // alert("Vibe Captured. Sleep well."); // Removed alert for smoother flow
   };
 
   const toggleIgnite = (id) => {
@@ -28,7 +43,12 @@ export default function App() {
     ));
   };
 
-  // --- NIGHT MODE (With Forced Spacing) ---
+  // New Feature: Delete a thought
+  const deleteThought = (id) => {
+    setThoughts(thoughts.filter(t => t.id !== id));
+  };
+
+  // --- NIGHT MODE ---
   if (mode === 'night') {
     return (
       <div style={{ 
@@ -98,7 +118,7 @@ export default function App() {
     );
   }
 
-  // --- MORNING MODE (With Forced Spacing) ---
+  // --- MORNING MODE ---
   return (
     <div style={{ 
       backgroundColor: '#ffffff', 
@@ -131,14 +151,20 @@ export default function App() {
                    border: `1px solid ${thought.ignited ? '#bbf7d0' : '#f3f4f6'}`,
                    padding: '20px',
                    borderRadius: '16px',
-                   transition: 'all 0.2s'
+                   transition: 'all 0.2s',
+                   position: 'relative' 
                  }}>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#9ca3af', backgroundColor: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #f3f4f6' }}>
                   {thought.time}
                 </span>
-                {thought.ignited && <CheckCircle size={20} color="#22c55e" />}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    {thought.ignited && <CheckCircle size={20} color="#22c55e" />}
+                    <button onClick={() => deleteThought(thought.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
+                        <Trash2 size={16} />
+                    </button>
+                </div>
               </div>
               
               <p style={{ 
