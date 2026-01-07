@@ -4,16 +4,23 @@ import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Targ
 import confetti from 'canvas-confetti';
 
 export default function App() {
-  const [mode, setMode] = useState('night'); 
+  // 1. MEMORY: Check Local Storage first, default to 'night' if empty
+  const [mode, setMode] = useState(() => localStorage.getItem('visionMode') || 'night');
+  
   const [activeTab, setActiveTab] = useState('targets'); 
   const [thoughts, setThoughts] = useState([]);
-  const [streak, setStreak] = useState(0); // NEW: Streak State
+  const [streak, setStreak] = useState(0); 
   const [currentInput, setCurrentInput] = useState('');
   const [uploading, setUploading] = useState(false);
   
   const [imageFile, setImageFile] = useState(null); 
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
+
+  // 2. MEMORY: Whenever 'mode' changes, save it to Local Storage
+  useEffect(() => {
+    localStorage.setItem('visionMode', mode);
+  }, [mode]);
 
   useEffect(() => {
     fetchThoughts();
@@ -31,18 +38,13 @@ export default function App() {
     }
   }
 
-  // --- NEW: THE STREAK ALGORITHM ---
   function calculateStreak(data) {
     if (!data || data.length === 0) {
       setStreak(0);
       return;
     }
 
-    // 1. Get all unique dates (YYYY-MM-DD) from the database
     const uniqueDates = [...new Set(data.map(item => new Date(item.created_at).toDateString()))];
-    
-    // 2. Sort dates (newest first)
-    // We need to convert them back to Date objects to sort correctly
     const sortedDates = uniqueDates.map(d => new Date(d)).sort((a, b) => b - a);
 
     const today = new Date().toDateString();
@@ -52,18 +54,12 @@ export default function App() {
 
     let currentStreak = 0;
     
-    // 3. Check if the streak is alive (must have posted today OR yesterday)
-    // If the newest post is older than yesterday, streak is broken.
     if (sortedDates[0].toDateString() !== today && sortedDates[0].toDateString() !== yesterdayString) {
       setStreak(0);
       return;
     }
 
-    // 4. Count backwards
-    // We start checking from "Today" (if exists) or "Yesterday"
-    let checkDate = new Date(); // Start with today
-    
-    // If user hasn't posted today yet, we start checking from yesterday to be fair
+    let checkDate = new Date(); 
     if (sortedDates[0].toDateString() !== today) {
         checkDate.setDate(checkDate.getDate() - 1);
     }
@@ -71,9 +67,9 @@ export default function App() {
     for (let i = 0; i < sortedDates.length; i++) {
         if (sortedDates[i].toDateString() === checkDate.toDateString()) {
             currentStreak++;
-            checkDate.setDate(checkDate.getDate() - 1); // Move to previous day
+            checkDate.setDate(checkDate.getDate() - 1); 
         } else {
-            break; // Gap found, stop counting
+            break; 
         }
     }
 
@@ -123,7 +119,7 @@ export default function App() {
     if (data) {
       const newThoughts = [data[0], ...thoughts];
       setThoughts(newThoughts);
-      calculateStreak(newThoughts); // Recalculate streak immediately
+      calculateStreak(newThoughts); 
       setCurrentInput('');
       setImageFile(null);
       setImagePreview(null);
@@ -246,14 +242,12 @@ export default function App() {
       <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ marginTop: '40px' }}>
           
-          {/* THE STREAK DISPLAY */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Sun size={32} color="#f59e0b" />
                 <h1 style={{ fontSize: '42px', fontWeight: '800', lineHeight: '1', margin: 0, color: '#1e293b' }}>The Fuel.</h1>
             </div>
             
-            {/* FLAME ICON */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff7ed', padding: '6px 12px', borderRadius: '20px', border: '1px solid #ffedd5' }}>
                 <Flame size={20} fill={streak > 0 ? "#f97316" : "none"} color="#f97316" />
                 <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#9a3412' }}>{streak} Day{streak !== 1 && 's'}</span>
