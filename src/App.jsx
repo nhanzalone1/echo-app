@@ -220,7 +220,19 @@ export default function App() {
                 {!thought.ignited && (
                   <button 
                     onClick={() => toggleIgnite(thought.id, thought.ignited)}
-                    style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    style={{ 
+                        marginTop: '16px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '8px', 
+                        fontSize: '14px', 
+                        fontWeight: 'bold', 
+                        color: '#2563eb', 
+                        background: 'none', 
+                        border: 'none', 
+                        cursor: 'pointer', 
+                        padding: 0 
+                    }}
                   >
                     <Play size={16} fill="currentColor" />
                     Replay Vibe & Ignite
