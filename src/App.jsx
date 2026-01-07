@@ -1,19 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from './supabaseClient'; // Connecting to the file you just made
+import { supabase } from './supabaseClient';
 import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play } from 'lucide-react';
 
 export default function App() {
   const [mode, setMode] = useState('night'); 
   const [thoughts, setThoughts] = useState([]);
   const [currentInput, setCurrentInput] = useState('');
-  const [uploading, setUploading] = useState(false); // To show a "Saving..." state
+  const [uploading, setUploading] = useState(false);
   
-  // Image handling
   const [imageFile, setImageFile] = useState(null); 
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // 1. LOAD from Supabase (The Cloud)
   useEffect(() => {
     fetchThoughts();
   }, []);
@@ -27,16 +25,14 @@ export default function App() {
     if (!error) setThoughts(data || []);
   }
 
-  // 2. Handle Image Selection
   const handleImageSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
       setImageFile(file);
-      setImagePreview(URL.createObjectURL(file)); // Show immediate preview
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  // 3. SAVE to Supabase (Upload Image + Save Text)
   const handleCapture = async () => {
     if (!currentInput.trim() && !imageFile) return;
     
@@ -44,7 +40,6 @@ export default function App() {
 
     let finalImageUrl = null;
 
-    // A. If there is an image, upload it first
     if (imageFile) {
       const fileName = `${Date.now()}-${imageFile.name}`;
       const { data, error } = await supabase.storage
@@ -52,7 +47,6 @@ export default function App() {
         .upload(fileName, imageFile);
         
       if (data) {
-        // Get the public link to the image
         const { data: urlData } = supabase.storage
           .from('images')
           .getPublicUrl(fileName);
@@ -60,7 +54,6 @@ export default function App() {
       }
     }
 
-    // B. Save the data to the database
     const { data, error } = await supabase
       .from('thoughts')
       .insert([
@@ -73,7 +66,7 @@ export default function App() {
       .select();
 
     if (data) {
-      setThoughts([data[0], ...thoughts]); // Add to list instantly
+      setThoughts([data[0], ...thoughts]);
       setCurrentInput('');
       setImageFile(null);
       setImagePreview(null);
@@ -82,7 +75,6 @@ export default function App() {
     setUploading(false);
   };
 
-  // 4. DELETE from Supabase
   const deleteThought = async (id) => {
     const { error } = await supabase.from('thoughts').delete().eq('id', id);
     if (!error) {
@@ -90,7 +82,6 @@ export default function App() {
     }
   };
 
-  // 5. TOGGLE Ignite
   const toggleIgnite = async (id, currentStatus) => {
     const { error } = await supabase
       .from('thoughts')
@@ -104,7 +95,6 @@ export default function App() {
     }
   };
 
-  // --- NIGHT MODE ---
   if (mode === 'night') {
     return (
       <div style={{ backgroundColor: '#09090b', color: 'white', minHeight: '100vh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -173,7 +163,6 @@ export default function App() {
     );
   }
 
-  // --- MORNING MODE ---
   return (
     <div style={{ backgroundColor: '#ffffff', color: 'black', minHeight: '100vh', padding: '24px', display: 'flex', flexDirection: 'column' }}>
        <button onClick={() => setMode('night')} style={{ position: 'absolute', top: '16px', right: '16px', border: '1px solid #ddd', padding: '5px 12px', borderRadius: '20px', fontSize: '12px', color: '#666', background: 'transparent', cursor: 'pointer' }}>
@@ -229,13 +218,14 @@ export default function App() {
                 </p>
 
                 {!thought.ignited && (
-                <button 
-                  onClick={() => toggleIgnite(thought.id, thought.ignited)}
-                  style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px',
+                  <button 
+                    onClick={() => toggleIgnite(thought.id, thought.ignited)}
+                    style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 'bold', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
                     <Play size={16} fill="currentColor" />
-                  Replay Vibe & Ignite
-                </button>
-              )}
+                    Replay Vibe & Ignite
+                  </button>
+                )}
               </div>
             </div>
           ))}
