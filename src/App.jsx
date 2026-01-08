@@ -90,16 +90,18 @@ function VisionBoard({ session }) {
   const chunksRef = useRef([]);
   const fileInputRef = useRef(null);
   const videoPreviewRef = useRef(null);
+  const streamRef = useRef(null); // Keep track of stream to close it properly
 
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
-  // --- SMART RECORDING LOGIC (MAC COMPATIBLE) ---
+  // --- UNIVERSAL RECORDING LOGIC ---
   const startRecording = async (type) => {
     try {
       chunksRef.current = [];
-      const constraints = type === 'video' ? { video: true, audio: true } : { audio: true };
+      const constraints = type === 'video' ? { video: { facingMode: "user" }, audio: true } : { audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
       
       if (type === 'video' && videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
@@ -107,24 +109,9 @@ function VisionBoard({ session }) {
         videoPreviewRef.current.play();
       }
 
-      // SMART FORMAT DETECTION
-      let options = {};
-      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-        options = { mimeType: 'video/webm;codecs=vp9' };
-      } else if (MediaRecorder.isTypeSupported('video/webm')) {
-        options = { mimeType: 'video/webm' };
-      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-        options = { mimeType: 'video/mp4' }; // Safari often prefers this
-      }
-      
-      // If audio only
-      if (type === 'audio') {
-         if (MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/webm' };
-         else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
-      }
-
-      // Fallback: Let browser decide if nothing matched or use detected options
-      const recorder = new MediaRecorder(stream, options);
+      // DO NOT force a mimeType. Let the browser choose its native default.
+      // Safari will choose video/mp4, Chrome will choose video/webm.
+      const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -132,11 +119,14 @@ function VisionBoard({ session }) {
       };
 
       recorder.onstop = () => {
-        // Create blob using the SAME type the recorder actually used
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        // Create blob using the detected type from the chunks
+        const recordedType = chunksRef.current[0]?.type || (type === 'video' ? 'video/webm' : 'audio/webm');
+        const blob = new Blob(chunksRef.current, { type: recordedType });
+        
         setMediaBlob(blob);
         setMediaPreviewUrl(URL.createObjectURL(blob));
         
+        // Stop all tracks to turn off camera light
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -144,7 +134,7 @@ function VisionBoard({ session }) {
       setIsRecording(true);
     } catch (err) {
       console.error("Error accessing media devices:", err);
-      alert("Error: " + err.message + ". Check Permissions.");
+      alert("Microphone/Camera permission denied. Please allow access in settings.");
     }
   };
 
@@ -159,6 +149,9 @@ function VisionBoard({ session }) {
     setImageFile(null); setImagePreview(null);
     setMediaBlob(null); setMediaPreviewUrl(null);
     setMediaType('text');
+    if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+    }
   };
 
   const handleImageSelect = (event) => {
@@ -186,9 +179,9 @@ function VisionBoard({ session }) {
     }
 
     if (mediaBlob) {
-        // Detect extension based on the actual recorded type
-        const type = mediaBlob.type.split(';')[0];
-        const ext = type.includes('mp4') ? 'mp4' : 'webm';
+        // Detect correct extension based on the actual recorded blob
+        const isMp4 = mediaBlob.type.includes('mp4');
+        const ext = isMp4 ? 'mp4' : 'webm';
         const fileName = `${mediaType}-${timestamp}.${ext}`;
         
         const { data, error } = await supabase.storage.from('images').upload(fileName, mediaBlob);
