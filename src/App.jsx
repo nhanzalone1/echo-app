@@ -94,6 +94,7 @@ function VisionBoard({ session }) {
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
+  // --- SMART RECORDING LOGIC (MAC COMPATIBLE) ---
   const startRecording = async (type) => {
     try {
       chunksRef.current = [];
@@ -106,7 +107,24 @@ function VisionBoard({ session }) {
         videoPreviewRef.current.play();
       }
 
-      const recorder = new MediaRecorder(stream);
+      // SMART FORMAT DETECTION
+      let options = {};
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        options = { mimeType: 'video/webm;codecs=vp9' };
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        options = { mimeType: 'video/webm' };
+      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+        options = { mimeType: 'video/mp4' }; // Safari often prefers this
+      }
+      
+      // If audio only
+      if (type === 'audio') {
+         if (MediaRecorder.isTypeSupported('audio/webm')) options = { mimeType: 'audio/webm' };
+         else if (MediaRecorder.isTypeSupported('audio/mp4')) options = { mimeType: 'audio/mp4' };
+      }
+
+      // Fallback: Let browser decide if nothing matched or use detected options
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
@@ -114,9 +132,11 @@ function VisionBoard({ session }) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: type === 'video' ? 'video/webm' : 'audio/webm' });
+        // Create blob using the SAME type the recorder actually used
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
         setMediaBlob(blob);
         setMediaPreviewUrl(URL.createObjectURL(blob));
+        
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -124,7 +144,7 @@ function VisionBoard({ session }) {
       setIsRecording(true);
     } catch (err) {
       console.error("Error accessing media devices:", err);
-      alert("Microphone/Camera permission denied. Check your browser settings.");
+      alert("Error: " + err.message + ". Check Permissions.");
     }
   };
 
@@ -166,13 +186,15 @@ function VisionBoard({ session }) {
     }
 
     if (mediaBlob) {
-        const ext = 'webm';
+        // Detect extension based on the actual recorded type
+        const type = mediaBlob.type.split(';')[0];
+        const ext = type.includes('mp4') ? 'mp4' : 'webm';
         const fileName = `${mediaType}-${timestamp}.${ext}`;
-        // NOTE: Ensure your 'images' bucket allows video/audio MIME types in Supabase Dashboard!
+        
         const { data, error } = await supabase.storage.from('images').upload(fileName, mediaBlob);
         
         if (error) {
-            alert("Upload failed. Check your Storage Bucket settings in Supabase!");
+            alert("Upload Error: " + error.message);
             console.error(error);
             setUploading(false);
             return;
@@ -290,7 +312,7 @@ function VisionBoard({ session }) {
                   {!mediaPreviewUrl ? (
                      <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                     <video src={mediaPreviewUrl} controls style={{ width: '100%', height: '100%' }} />
+                     <video src={mediaPreviewUrl} controls playsInline style={{ width: '100%', height: '100%' }} />
                   )}
                   {isRecording && <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'red', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>REC</div>}
                   {mediaPreviewUrl && <button onClick={resetMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}><X size={18} /></button>}
@@ -342,7 +364,7 @@ function VisionBoard({ session }) {
           {visibleThoughts.map((thought) => (
             <div key={thought.id} style={{ backgroundColor: thought.ignited ? 'rgba(240, 253, 244, 0.9)' : 'rgba(255, 255, 255, 0.8)', border: `1px solid ${thought.ignited ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '20px', overflow: 'hidden', paddingBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', backdropFilter: 'blur(8px)' }}>
               {thought.image_url && (<div style={{ width: '100%', height: '260px' }}><img src={thought.image_url} alt="Vision" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>)}
-              {thought.video_url && (<div style={{ width: '100%', background: 'black' }}><video src={thought.video_url} controls style={{ width: '100%', maxHeight: '400px' }} /></div>)}
+              {thought.video_url && (<div style={{ width: '100%', background: 'black' }}><video src={thought.video_url} controls playsInline style={{ width: '100%', maxHeight: '400px' }} /></div>)}
               {thought.audio_url && (<div style={{ padding: '15px 20px 0 20px' }}><audio src={thought.audio_url} controls style={{ width: '100%' }} /></div>)}
               <div style={{ padding: '0 24px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
