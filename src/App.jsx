@@ -90,51 +90,75 @@ function VisionBoard({ session }) {
   const chunksRef = useRef([]);
   const fileInputRef = useRef(null);
   const videoPreviewRef = useRef(null);
-  const streamRef = useRef(null); // Keep track of stream to close it properly
+  const streamRef = useRef(null); 
 
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
-  // --- UNIVERSAL RECORDING LOGIC ---
+  // --- SAFARI-PROOF RECORDING LOGIC ---
   const startRecording = async (type) => {
     try {
       chunksRef.current = [];
+      
+      // 1. Get the stream
       const constraints = type === 'video' ? { video: { facingMode: "user" }, audio: true } : { audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       
+      // 2. Setup Preview
       if (type === 'video' && videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
         videoPreviewRef.current.muted = true; 
-        videoPreviewRef.current.play();
+        videoPreviewRef.current.play().catch(e => console.log("Preview play error:", e));
       }
 
-      // DO NOT force a mimeType. Let the browser choose its native default.
-      // Safari will choose video/mp4, Chrome will choose video/webm.
-      const recorder = new MediaRecorder(stream);
+      // 3. Detect the best format for Safari/Mac vs Chrome
+      let mimeType = '';
+      if (type === 'video') {
+          if (MediaRecorder.isTypeSupported('video/mp4')) {
+              mimeType = 'video/mp4'; // Safari loves this
+          } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+              mimeType = 'video/webm;codecs=vp9'; // Chrome loves this
+          } else {
+              mimeType = 'video/webm'; // Fallback
+          }
+      } else {
+          if (MediaRecorder.isTypeSupported('audio/mp4')) {
+              mimeType = 'audio/mp4'; // Safari audio
+          } else {
+              mimeType = 'audio/webm'; // Chrome audio
+          }
+      }
+
+      // 4. Start Recorder with specific MimeType
+      const options = mimeType ? { mimeType } : undefined;
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
+        if (e.data && e.data.size > 0) {
+            chunksRef.current.push(e.data);
+        }
       };
 
       recorder.onstop = () => {
-        // Create blob using the detected type from the chunks
-        const recordedType = chunksRef.current[0]?.type || (type === 'video' ? 'video/webm' : 'audio/webm');
-        const blob = new Blob(chunksRef.current, { type: recordedType });
-        
+        // Create the final blob
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
         setMediaBlob(blob);
         setMediaPreviewUrl(URL.createObjectURL(blob));
         
-        // Stop all tracks to turn off camera light
+        // Stop the camera light
         stream.getTracks().forEach(track => track.stop());
       };
 
-      recorder.start();
+      // 5. CRITICAL SAFARI FIX: Start with a 1000ms timeslice
+      // This forces Safari to generate data chunks every 1 second
+      recorder.start(1000); 
+      
       setIsRecording(true);
     } catch (err) {
       console.error("Error accessing media devices:", err);
-      alert("Microphone/Camera permission denied. Please allow access in settings.");
+      alert("Camera Error: " + err.message);
     }
   };
 
@@ -179,11 +203,12 @@ function VisionBoard({ session }) {
     }
 
     if (mediaBlob) {
-        // Detect correct extension based on the actual recorded blob
+        // Decide extension
         const isMp4 = mediaBlob.type.includes('mp4');
         const ext = isMp4 ? 'mp4' : 'webm';
         const fileName = `${mediaType}-${timestamp}.${ext}`;
         
+        // Try upload
         const { data, error } = await supabase.storage.from('images').upload(fileName, mediaBlob);
         
         if (error) {
