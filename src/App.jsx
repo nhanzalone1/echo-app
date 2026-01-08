@@ -3,7 +3,6 @@ import { supabase } from './supabaseClient';
 import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// --- AUTH COMPONENT ---
 function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -51,7 +50,6 @@ function Auth({ onLogin }) {
   );
 }
 
-// --- MAIN APP ---
 export default function App() {
   const [session, setSession] = useState(null);
   useEffect(() => {
@@ -63,7 +61,6 @@ export default function App() {
   return <VisionBoard session={session} />;
 }
 
-// --- LOGIC ---
 function VisionBoard({ session }) {
   const [mode, setMode] = useState(() => localStorage.getItem('visionMode') || 'night');
   const [activeTab, setActiveTab] = useState('targets'); 
@@ -71,6 +68,7 @@ function VisionBoard({ session }) {
   const [streak, setStreak] = useState(0); 
   const [currentInput, setCurrentInput] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [debugLog, setDebugLog] = useState(''); // NEW DEBUG STATE
   
   // NATIVE INPUT REFS
   const fileInputRef = useRef(null);
@@ -81,36 +79,45 @@ function VisionBoard({ session }) {
   const audioChunksRef = useRef([]);
 
   // MEDIA STATES
-  const [mediaFile, setMediaFile] = useState(null); // Used for Photo/Video
-  const [audioBlob, setAudioBlob] = useState(null); // Used for Voice Memos
-  const [mediaType, setMediaType] = useState('text'); // 'text', 'image', 'video', 'audio'
+  const [mediaFile, setMediaFile] = useState(null); 
+  const [audioBlob, setAudioBlob] = useState(null); 
+  const [mediaType, setMediaType] = useState('text'); 
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
 
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
-  // 1. HANDLE NATIVE PHOTO/VIDEO SELECTION
   const handleFileSelect = (event, type) => {
     const file = event.target.files[0];
     if (file) {
-      // SIZE CHECK: Supabase Free Tier limit is usually 50MB
+      setDebugLog('');
+      // 50MB Check
       if (file.size > 50 * 1024 * 1024) {
-        alert("File too large! Please keep video under 50MB (short clips).");
+        setDebugLog("Error: File is too large! (Limit 50MB). Please record a shorter clip.");
         return;
       }
       setMediaFile(file);
-      setAudioBlob(null); // Clear any audio
+      setAudioBlob(null);
       setMediaType(type);
       setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
-  // 2. HANDLE LIVE AUDIO RECORDING
   const startAudioRecording = async () => {
     try {
+      setDebugLog('');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      
+      // Safari support check
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options = { mimeType: 'audio/mp4' };
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/webm' };
+      }
+
+      const recorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
 
@@ -119,19 +126,19 @@ function VisionBoard({ session }) {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const type = options.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type });
         setAudioBlob(blob);
-        setMediaFile(null); // Clear any video/photo
+        setMediaFile(null); 
         setMediaType('audio');
         setPreviewUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach(track => track.stop()); // Stop mic
+        stream.getTracks().forEach(track => track.stop());
       };
 
       recorder.start();
       setIsRecordingAudio(true);
     } catch (err) {
-      console.error(err);
-      alert("Microphone access denied.");
+      setDebugLog("Mic Error: " + err.message);
     }
   };
 
@@ -147,69 +154,81 @@ function VisionBoard({ session }) {
     setAudioBlob(null);
     setMediaType('text');
     setPreviewUrl(null);
+    setDebugLog('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (videoInputRef.current) videoInputRef.current.value = '';
   };
 
-  // 3. UPLOAD LOGIC
   const handleCapture = async () => {
     if (!currentInput.trim() && !mediaFile && !audioBlob) return;
     setUploading(true);
+    setDebugLog('Starting upload...');
 
     let imageUrl = null;
     let videoUrl = null;
     let audioUrl = null;
     const timestamp = Date.now();
 
-    // UPLOAD PHOTO OR VIDEO
-    if (mediaFile) {
-        const ext = mediaFile.name.split('.').pop() || 'mov';
-        const fileName = `${mediaType}-${timestamp}.${ext}`;
-        const { data, error } = await supabase.storage.from('images').upload(fileName, mediaFile);
-        
-        if (error) {
-            alert("Upload failed: " + error.message);
-            setUploading(false);
-            return;
-        }
-        if (data) {
-            const publicUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
-            if (mediaType === 'image') imageUrl = publicUrl;
-            if (mediaType === 'video') videoUrl = publicUrl;
-        }
-    }
+    try {
+      // UPLOAD PHOTO OR VIDEO
+      if (mediaFile) {
+          const ext = mediaFile.name.split('.').pop() || 'mov';
+          const fileName = `${mediaType}-${timestamp}.${ext}`;
+          
+          setDebugLog(`Uploading ${mediaType}...`);
+          const { data, error } = await supabase.storage.from('images').upload(fileName, mediaFile);
+          
+          if (error) throw error;
 
-    // UPLOAD AUDIO BLOB
-    if (audioBlob) {
-        const fileName = `audio-${timestamp}.webm`;
-        const { data, error } = await supabase.storage.from('images').upload(fileName, audioBlob);
-        
-        if (error) {
-            alert("Audio upload failed: " + error.message);
-            setUploading(false);
-            return;
-        }
-        if (data) {
-            audioUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
-        }
-    }
+          if (data) {
+              const publicUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
+              if (mediaType === 'image') imageUrl = publicUrl;
+              if (mediaType === 'video') videoUrl = publicUrl;
+          }
+      }
 
-    const { data } = await supabase.from('thoughts').insert([{ 
-        text: currentInput, 
-        image_url: imageUrl, 
-        video_url: videoUrl,
-        audio_url: audioUrl,
-        ignited: false, 
-        user_id: session.user.id 
-    }]).select();
+      // UPLOAD AUDIO BLOB
+      if (audioBlob) {
+          // Determine extension from type
+          const ext = audioBlob.type.includes('mp4') ? 'mp4' : 'webm';
+          const fileName = `audio-${timestamp}.${ext}`;
+          
+          setDebugLog('Uploading audio...');
+          const { data, error } = await supabase.storage.from('images').upload(fileName, audioBlob);
+          
+          if (error) throw error;
+          
+          if (data) {
+              audioUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
+          }
+      }
 
-    if (data) {
-      setThoughts([data[0], ...thoughts]);
-      calculateStreak([data[0], ...thoughts]);
-      setCurrentInput('');
-      clearMedia();
+      setDebugLog('Saving to database...');
+      const { data, error } = await supabase.from('thoughts').insert([{ 
+          text: currentInput, 
+          image_url: imageUrl, 
+          video_url: videoUrl,
+          audio_url: audioUrl,
+          ignited: false, 
+          user_id: session.user.id 
+      }]).select();
+
+      if (error) throw error;
+
+      if (data) {
+        setThoughts([data[0], ...thoughts]);
+        calculateStreak([data[0], ...thoughts]);
+        setCurrentInput('');
+        clearMedia();
+        setDebugLog('Success!');
+        setTimeout(() => setDebugLog(''), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+      setDebugLog("FAILED: " + err.message);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
   };
 
   async function fetchThoughts() {
@@ -286,11 +305,18 @@ function VisionBoard({ session }) {
         {mode === 'night' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
              
+             {/* DEBUG LOG BOX */}
+             {debugLog && (
+                <div style={{ background: '#7f1d1d', color: '#fecaca', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: '1px solid #ef4444' }}>
+                    {debugLog}
+                </div>
+             )}
+
              {/* PREVIEW */}
              {(previewUrl || isRecordingAudio) && (
                 <div style={{ position: 'relative', width: '100%', minHeight: '120px', background: '#111', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {mediaType === 'image' && <img src={previewUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />}
-                  {mediaType === 'video' && <video src={previewUrl} controls style={{ width: '100%', maxHeight: '300px' }} />}
+                  {mediaType === 'video' && <video src={previewUrl} controls playsInline style={{ width: '100%', maxHeight: '300px' }} />}
                   
                   {isRecordingAudio && (
                       <div style={{ color: '#ef4444', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>Recording Audio... (Tap Stop)</div>
@@ -329,7 +355,7 @@ function VisionBoard({ session }) {
           {visibleThoughts.map((thought) => (
             <div key={thought.id} style={{ backgroundColor: thought.ignited ? 'rgba(240, 253, 244, 0.9)' : 'rgba(255, 255, 255, 0.8)', border: `1px solid ${thought.ignited ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '20px', overflow: 'hidden', paddingBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', backdropFilter: 'blur(8px)' }}>
               {thought.image_url && (<img src={thought.image_url} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />)}
-              {thought.video_url && (<video src={thought.video_url} controls style={{ width: '100%', maxHeight: '400px', background: 'black' }} />)}
+              {thought.video_url && (<video src={thought.video_url} controls playsInline style={{ width: '100%', maxHeight: '400px', background: 'black' }} />)}
               {thought.audio_url && (<div style={{ padding: '15px' }}><audio src={thought.audio_url} controls style={{ width: '100%' }} /></div>)}
               <div style={{ padding: '0 24px', marginTop: '20px' }}>
                  <p style={{ fontSize: '19px', fontWeight: '600', color: thought.ignited ? '#94a3b8' : '#1e293b', textDecoration: thought.ignited ? 'line-through' : 'none' }}>"{thought.text}"</p>
