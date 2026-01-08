@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X } from 'lucide-react';
+import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+// --- AUTH COMPONENT ---
 function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -50,6 +51,7 @@ function Auth({ onLogin }) {
   );
 }
 
+// --- MAIN APP ---
 export default function App() {
   const [session, setSession] = useState(null);
   useEffect(() => {
@@ -61,6 +63,7 @@ export default function App() {
   return <VisionBoard session={session} />;
 }
 
+// --- LOGIC ---
 function VisionBoard({ session }) {
   const [mode, setMode] = useState(() => localStorage.getItem('visionMode') || 'night');
   const [activeTab, setActiveTab] = useState('targets'); 
@@ -69,39 +72,88 @@ function VisionBoard({ session }) {
   const [currentInput, setCurrentInput] = useState('');
   const [uploading, setUploading] = useState(false);
   
-  // FILE INPUTS
+  // NATIVE INPUT REFS
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
-  const audioInputRef = useRef(null); // NOTE: iOS does not support audio capture nicely, will act as file picker
   
-  // PREVIEW STATES
-  const [mediaFile, setMediaFile] = useState(null); // Can be image, video, or audio
+  // LIVE AUDIO REFS
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // MEDIA STATES
+  const [mediaFile, setMediaFile] = useState(null); // Used for Photo/Video
+  const [audioBlob, setAudioBlob] = useState(null); // Used for Voice Memos
   const [mediaType, setMediaType] = useState('text'); // 'text', 'image', 'video', 'audio'
   const [previewUrl, setPreviewUrl] = useState(null);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
 
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
+  // 1. HANDLE NATIVE PHOTO/VIDEO SELECTION
   const handleFileSelect = (event, type) => {
     const file = event.target.files[0];
     if (file) {
+      // SIZE CHECK: Supabase Free Tier limit is usually 50MB
+      if (file.size > 50 * 1024 * 1024) {
+        alert("File too large! Please keep video under 50MB (short clips).");
+        return;
+      }
       setMediaFile(file);
+      setAudioBlob(null); // Clear any audio
       setMediaType(type);
       setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
+  // 2. HANDLE LIVE AUDIO RECORDING
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setMediaFile(null); // Clear any video/photo
+        setMediaType('audio');
+        setPreviewUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(track => track.stop()); // Stop mic
+      };
+
+      recorder.start();
+      setIsRecordingAudio(true);
+    } catch (err) {
+      console.error(err);
+      alert("Microphone access denied.");
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      mediaRecorderRef.current.stop();
+      setIsRecordingAudio(false);
+    }
+  };
+
   const clearMedia = () => {
     setMediaFile(null);
+    setAudioBlob(null);
     setMediaType('text');
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (videoInputRef.current) videoInputRef.current.value = '';
-    if (audioInputRef.current) audioInputRef.current.value = '';
   };
 
+  // 3. UPLOAD LOGIC
   const handleCapture = async () => {
-    if (!currentInput.trim() && !mediaFile) return;
+    if (!currentInput.trim() && !mediaFile && !audioBlob) return;
     setUploading(true);
 
     let imageUrl = null;
@@ -109,9 +161,9 @@ function VisionBoard({ session }) {
     let audioUrl = null;
     const timestamp = Date.now();
 
+    // UPLOAD PHOTO OR VIDEO
     if (mediaFile) {
-        // Upload logic
-        const ext = mediaFile.name.split('.').pop();
+        const ext = mediaFile.name.split('.').pop() || 'mov';
         const fileName = `${mediaType}-${timestamp}.${ext}`;
         const { data, error } = await supabase.storage.from('images').upload(fileName, mediaFile);
         
@@ -120,12 +172,25 @@ function VisionBoard({ session }) {
             setUploading(false);
             return;
         }
-
         if (data) {
             const publicUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
             if (mediaType === 'image') imageUrl = publicUrl;
             if (mediaType === 'video') videoUrl = publicUrl;
-            if (mediaType === 'audio') audioUrl = publicUrl;
+        }
+    }
+
+    // UPLOAD AUDIO BLOB
+    if (audioBlob) {
+        const fileName = `audio-${timestamp}.webm`;
+        const { data, error } = await supabase.storage.from('images').upload(fileName, audioBlob);
+        
+        if (error) {
+            alert("Audio upload failed: " + error.message);
+            setUploading(false);
+            return;
+        }
+        if (data) {
+            audioUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
         }
     }
 
@@ -222,12 +287,19 @@ function VisionBoard({ session }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
              
              {/* PREVIEW */}
-             {mediaFile && (
-                <div style={{ position: 'relative', width: '100%', maxHeight: '300px', background: 'black', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {mediaType === 'image' && <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+             {(previewUrl || isRecordingAudio) && (
+                <div style={{ position: 'relative', width: '100%', minHeight: '120px', background: '#111', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {mediaType === 'image' && <img src={previewUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />}
                   {mediaType === 'video' && <video src={previewUrl} controls style={{ width: '100%', maxHeight: '300px' }} />}
-                  {mediaType === 'audio' && <audio src={previewUrl} controls style={{ width: '90%' }} />}
-                  <button onClick={clearMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10 }}>X</button>
+                  
+                  {isRecordingAudio && (
+                      <div style={{ color: '#ef4444', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>Recording Audio... (Tap Stop)</div>
+                  )}
+                  {mediaType === 'audio' && !isRecordingAudio && (
+                      <audio src={previewUrl} controls style={{ width: '90%' }} />
+                  )}
+
+                  {!isRecordingAudio && <button onClick={clearMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10 }}>X</button>}
                 </div>
              )}
 
@@ -236,16 +308,19 @@ function VisionBoard({ session }) {
              {/* HIDDEN INPUTS */}
              <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'image')} style={{ display: 'none' }} />
              <input type="file" accept="video/*" capture="environment" ref={videoInputRef} onChange={(e) => handleFileSelect(e, 'video')} style={{ display: 'none' }} />
-             <input type="file" accept="audio/*" ref={audioInputRef} onChange={(e) => handleFileSelect(e, 'audio')} style={{ display: 'none' }} />
-
+             
              {/* BUTTON BAR */}
              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => fileInputRef.current.click()} disabled={uploading} style={{ flex: 1, height: '50px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#c084fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Camera size={20} /></button>
-                <button onClick={() => videoInputRef.current.click()} disabled={uploading} style={{ flex: 1, height: '50px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={20} /></button>
-                <button onClick={() => audioInputRef.current.click()} disabled={uploading} style={{ flex: 1, height: '50px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Mic size={20} /></button>
+                <button onClick={() => fileInputRef.current.click()} disabled={uploading || isRecordingAudio} style={{ flex: 1, height: '50px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#c084fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Camera size={20} /></button>
+                <button onClick={() => videoInputRef.current.click()} disabled={uploading || isRecordingAudio} style={{ flex: 1, height: '50px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={20} /></button>
+                
+                {/* DYNAMIC AUDIO BUTTON */}
+                <button onClick={isRecordingAudio ? stopAudioRecording : startAudioRecording} disabled={uploading} style={{ flex: 1, height: '50px', background: isRecordingAudio ? '#ef4444' : '#222', border: isRecordingAudio ? 'none' : '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: isRecordingAudio ? 'white' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isRecordingAudio ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
+                </button>
              </div>
 
-             <button onClick={handleCapture} disabled={uploading} style={{ width: '100%', padding: '16px', backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)' }}>{uploading ? 'Syncing...' : 'Capture'}</button>
+             <button onClick={handleCapture} disabled={uploading || isRecordingAudio} style={{ width: '100%', padding: '16px', backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)' }}>{uploading ? 'Syncing...' : 'Capture'}</button>
           </div>
         )}
 
