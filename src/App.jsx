@@ -78,7 +78,7 @@ function VisionBoard({ session }) {
   const [uploading, setUploading] = useState(false);
   
   // MEDIA STATES
-  const [mediaType, setMediaType] = useState('text'); // 'text', 'photo', 'video', 'audio'
+  const [mediaType, setMediaType] = useState('text'); 
   const [imageFile, setImageFile] = useState(null); 
   const [imagePreview, setImagePreview] = useState(null);
   
@@ -94,17 +94,15 @@ function VisionBoard({ session }) {
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); }, [session]);
 
-  // --- RECORDING LOGIC (Audio & Video) ---
   const startRecording = async (type) => {
     try {
       chunksRef.current = [];
       const constraints = type === 'video' ? { video: true, audio: true } : { audio: true };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      // If video, show live preview
       if (type === 'video' && videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
-        videoPreviewRef.current.muted = true; // Mute preview to avoid feedback
+        videoPreviewRef.current.muted = true; 
         videoPreviewRef.current.play();
       }
 
@@ -119,8 +117,6 @@ function VisionBoard({ session }) {
         const blob = new Blob(chunksRef.current, { type: type === 'video' ? 'video/webm' : 'audio/webm' });
         setMediaBlob(blob);
         setMediaPreviewUrl(URL.createObjectURL(blob));
-        
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
 
@@ -128,7 +124,7 @@ function VisionBoard({ session }) {
       setIsRecording(true);
     } catch (err) {
       console.error("Error accessing media devices:", err);
-      alert("Microphone/Camera permission denied.");
+      alert("Microphone/Camera permission denied. Check your browser settings.");
     }
   };
 
@@ -154,7 +150,6 @@ function VisionBoard({ session }) {
     }
   };
 
-  // --- UPLOAD & SAVE ---
   const handleCapture = async () => {
     if (!currentInput.trim() && !imageFile && !mediaBlob) return;
     setUploading(true);
@@ -164,18 +159,25 @@ function VisionBoard({ session }) {
     let videoUrl = null;
     const timestamp = Date.now();
 
-    // 1. Upload Photo
     if (imageFile) {
       const fileName = `img-${timestamp}-${imageFile.name}`;
       const { data } = await supabase.storage.from('images').upload(fileName, imageFile);
       if (data) imageUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
     }
 
-    // 2. Upload Audio/Video Blob
     if (mediaBlob) {
-        const ext = mediaType === 'video' ? 'webm' : 'webm'; // Browser recording usually defaults to webm
+        const ext = 'webm';
         const fileName = `${mediaType}-${timestamp}.${ext}`;
-        const { data } = await supabase.storage.from('images').upload(fileName, mediaBlob); // Using 'images' bucket for simplicity
+        // NOTE: Ensure your 'images' bucket allows video/audio MIME types in Supabase Dashboard!
+        const { data, error } = await supabase.storage.from('images').upload(fileName, mediaBlob);
+        
+        if (error) {
+            alert("Upload failed. Check your Storage Bucket settings in Supabase!");
+            console.error(error);
+            setUploading(false);
+            return;
+        }
+
         if (data) {
             const publicUrl = supabase.storage.from('images').getPublicUrl(fileName).data.publicUrl;
             if (mediaType === 'video') videoUrl = publicUrl;
@@ -183,7 +185,6 @@ function VisionBoard({ session }) {
         }
     }
 
-    // 3. Save to DB
     const { data } = await supabase.from('thoughts').insert([{ 
         text: currentInput, 
         image_url: imageUrl, 
@@ -203,7 +204,6 @@ function VisionBoard({ session }) {
     setUploading(false);
   };
 
-  // --- DATA FETCHING & HELPERS ---
   async function fetchThoughts() {
     const { data, error } = await supabase.from('thoughts').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false });
     if (!error) { setThoughts(data || []); calculateStreak(data || []); }
@@ -216,7 +216,6 @@ function VisionBoard({ session }) {
     const today = new Date().toDateString();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    
     if (sortedDates[0].toDateString() !== today && sortedDates[0].toDateString() !== yesterday.toDateString()) { setStreak(0); return; }
     let currentStreak = 0;
     let checkDate = new Date();
@@ -275,88 +274,76 @@ function VisionBoard({ session }) {
           )}
         </div>
 
-        {/* INPUT AREA */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-           
-           {/* PREVIEWS */}
-           {imagePreview && (
-              <div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333' }}>
-                <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <button onClick={resetMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}><X size={18} /></button>
-              </div>
-           )}
-           
-           {/* MEDIA RECORDING UI */}
-           {mediaType === 'video' && (
-             <div style={{ position: 'relative', width: '100%', height: '260px', background: 'black', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333' }}>
-                {!mediaPreviewUrl ? (
-                   <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                   <video src={mediaPreviewUrl} controls style={{ width: '100%', height: '100%' }} />
-                )}
-                
-                {isRecording && <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'red', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>REC</div>}
-                {mediaPreviewUrl && <button onClick={resetMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}><X size={18} /></button>}
-             </div>
-           )}
-
-           {mediaType === 'audio' && (
-             <div style={{ width: '100%', padding: '20px', background: '#111', borderRadius: '16px', border: '1px solid #333', textAlign: 'center', color: 'white' }}>
-                {isRecording ? <p style={{ color: '#ef4444', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>Recording Audio...</p> : mediaPreviewUrl ? <audio src={mediaPreviewUrl} controls style={{ width: '100%' }} /> : <p>Ready to Record</p>}
-                {mediaPreviewUrl && <button onClick={resetMedia} style={{ marginTop: '10px', background: 'none', border: '1px solid #333', color: '#888', padding: '5px 10px', borderRadius: '8px', cursor: 'pointer' }}>Discard Audio</button>}
-             </div>
-           )}
-
-           {/* TEXT INPUT (Only show if not in video mode to save space) */}
-           {mediaType !== 'video' && (
-            <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder={mediaType === 'audio' ? "Add a title to this voice note..." : "What are you building?"} style={{ width: '100%', height: '80px', backgroundColor: 'rgba(26, 26, 26, 0.8)', border: '1px solid #333', color: mode === 'morning' ? 'black' : 'white', outline: 'none', borderRadius: '16px', padding: '16px', fontSize: '18px', resize: 'none', backdropFilter: 'blur(10px)' }} disabled={uploading} />
-           )}
-
-           <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
-
-           {/* CONTROLS BAR */}
-           <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+        {/* --- INPUT AREA (ONLY SHOW IN NIGHT MODE) --- */}
+        {mode === 'night' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
              
-             {/* MODE SWITCHERS */}
-             <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => { setMediaType('photo'); fileInputRef.current.click(); }} disabled={uploading} style={{ background: mediaType === 'photo' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#c084fc' }}><Camera size={20} /></button>
-                <button onClick={() => { setMediaType('video'); setMediaBlob(null); setMediaPreviewUrl(null); }} disabled={uploading} style={{ background: mediaType === 'video' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#3b82f6' }}><Video size={20} /></button>
-                <button onClick={() => { setMediaType('audio'); setMediaBlob(null); setMediaPreviewUrl(null); }} disabled={uploading} style={{ background: mediaType === 'audio' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ef4444' }}><Mic size={20} /></button>
-             </div>
-
-             {/* DYNAMIC ACTION BUTTON */}
-             {(mediaType === 'video' || mediaType === 'audio') && !mediaBlob ? (
-                // RECORD BUTTON
-                <button 
-                  onClick={() => isRecording ? stopRecording() : startRecording(mediaType)}
-                  style={{ flex: 1, backgroundColor: isRecording ? '#ef4444' : 'white', color: isRecording ? 'white' : 'black', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  {isRecording ? <><StopCircle /> Stop Recording</> : (mediaType === 'video' ? 'Start Video' : 'Start Audio')}
-                </button>
-             ) : (
-                // UPLOAD BUTTON
-                <button 
-                  onClick={handleCapture}
-                  disabled={uploading}
-                  style={{ flex: 1, backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)' }}
-                >
-                  {uploading ? 'Syncing...' : 'Capture'}
-                </button>
+             {imagePreview && (
+                <div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333' }}>
+                  <img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button onClick={resetMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}><X size={18} /></button>
+                </div>
              )}
-           </div>
-        </div>
+             
+             {mediaType === 'video' && (
+               <div style={{ position: 'relative', width: '100%', height: '260px', background: 'black', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333' }}>
+                  {!mediaPreviewUrl ? (
+                     <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                     <video src={mediaPreviewUrl} controls style={{ width: '100%', height: '100%' }} />
+                  )}
+                  {isRecording && <div style={{ position: 'absolute', top: '10px', left: '10px', background: 'red', color: 'white', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>REC</div>}
+                  {mediaPreviewUrl && <button onClick={resetMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer' }}><X size={18} /></button>}
+               </div>
+             )}
+
+             {mediaType === 'audio' && (
+               <div style={{ width: '100%', padding: '20px', background: '#111', borderRadius: '16px', border: '1px solid #333', textAlign: 'center', color: 'white' }}>
+                  {isRecording ? <p style={{ color: '#ef4444', fontWeight: 'bold', animation: 'pulse 1s infinite' }}>Recording Audio...</p> : mediaPreviewUrl ? <audio src={mediaPreviewUrl} controls style={{ width: '100%' }} /> : <p>Ready to Record</p>}
+                  {mediaPreviewUrl && <button onClick={resetMedia} style={{ marginTop: '10px', background: 'none', border: '1px solid #333', color: '#888', padding: '5px 10px', borderRadius: '8px', cursor: 'pointer' }}>Discard Audio</button>}
+               </div>
+             )}
+
+             {mediaType !== 'video' && (
+              <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder={mediaType === 'audio' ? "Add a title to this voice note..." : "What are you building?"} style={{ width: '100%', height: '80px', backgroundColor: 'rgba(26, 26, 26, 0.8)', border: '1px solid #333', color: 'white', outline: 'none', borderRadius: '16px', padding: '16px', fontSize: '18px', resize: 'none', backdropFilter: 'blur(10px)' }} disabled={uploading} />
+             )}
+
+             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
+
+             <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+               <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => { setMediaType('photo'); fileInputRef.current.click(); }} disabled={uploading} style={{ background: mediaType === 'photo' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#c084fc' }}><Camera size={20} /></button>
+                  <button onClick={() => { setMediaType('video'); setMediaBlob(null); setMediaPreviewUrl(null); }} disabled={uploading} style={{ background: mediaType === 'video' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#3b82f6' }}><Video size={20} /></button>
+                  <button onClick={() => { setMediaType('audio'); setMediaBlob(null); setMediaPreviewUrl(null); }} disabled={uploading} style={{ background: mediaType === 'audio' ? '#222' : 'transparent', border: '1px solid #333', borderRadius: '12px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ef4444' }}><Mic size={20} /></button>
+               </div>
+               {(mediaType === 'video' || mediaType === 'audio') && !mediaBlob ? (
+                  <button 
+                    onClick={() => isRecording ? stopRecording() : startRecording(mediaType)}
+                    style={{ flex: 1, backgroundColor: isRecording ? '#ef4444' : 'white', color: isRecording ? 'white' : 'black', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {isRecording ? <><StopCircle /> Stop Recording</> : (mediaType === 'video' ? 'Start Video' : 'Start Audio')}
+                  </button>
+               ) : (
+                  <button 
+                    onClick={handleCapture}
+                    disabled={uploading}
+                    style={{ flex: 1, backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)' }}
+                  >
+                    {uploading ? 'Syncing...' : 'Capture'}
+                  </button>
+               )}
+             </div>
+          </div>
+        )}
 
         {/* FEED */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
           {visibleThoughts.length === 0 && (<div style={{ padding: '40px 0', textAlign: 'center', color: '#94a3b8' }}><p style={{ margin: 0, fontSize: '16px' }}>{activeTab === 'targets' ? "Ready to capture." : "The Vault is empty."}</p></div>)}
           {visibleThoughts.map((thought) => (
             <div key={thought.id} style={{ backgroundColor: thought.ignited ? 'rgba(240, 253, 244, 0.9)' : 'rgba(255, 255, 255, 0.8)', border: `1px solid ${thought.ignited ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '20px', overflow: 'hidden', paddingBottom: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', backdropFilter: 'blur(8px)' }}>
-              
-              {/* DISPLAY CONTENT */}
               {thought.image_url && (<div style={{ width: '100%', height: '260px' }}><img src={thought.image_url} alt="Vision" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>)}
               {thought.video_url && (<div style={{ width: '100%', background: 'black' }}><video src={thought.video_url} controls style={{ width: '100%', maxHeight: '400px' }} /></div>)}
               {thought.audio_url && (<div style={{ padding: '15px 20px 0 20px' }}><audio src={thought.audio_url} controls style={{ width: '100%' }} /></div>)}
-
               <div style={{ padding: '0 24px', marginTop: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                     <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '600', letterSpacing: '0.5px' }}>{new Date(thought.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}).toUpperCase()}</span>
