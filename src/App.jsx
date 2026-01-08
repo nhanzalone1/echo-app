@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Target, Flame, LogOut, Lock } from 'lucide-react';
+import { Moon, Trash2, Image as ImageIcon, CheckCircle, Play, Sun, Archive, Target, Flame, LogOut, Lock, Mic, MicOff } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-// --- AUTH COMPONENT (The Gatekeeper) ---
+// --- AUTH COMPONENT ---
 function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -30,8 +30,6 @@ function Auth({ onLogin }) {
     } else {
       if (isSignUp && !data.session) {
         setMessage('Check your email for the confirmation link!');
-      } else {
-        // Successful Login
       }
     }
     setLoading(false);
@@ -40,46 +38,22 @@ function Auth({ onLogin }) {
   return (
     <div style={{ minHeight: '100vh', background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', color: 'white' }}>
       <div style={{ maxWidth: '350px', width: '100%', display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
-        
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
            <div style={{ background: 'rgba(192, 132, 252, 0.1)', padding: '20px', borderRadius: '50%' }}>
              <Lock size={40} color="#c084fc" />
            </div>
         </div>
-        
         <div>
           <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 'bold' }}>Vision Log.</h1>
           <p style={{ color: '#888', marginTop: '8px' }}>Secure your future.</p>
         </div>
-
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <input 
-            type="email" 
-            placeholder="Email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }}
-            required
-          />
-          <input 
-            type="password" 
-            placeholder="Password" 
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }}
-            required
-          />
-          
-          <button disabled={loading} style={{ padding: '16px', borderRadius: '12px', border: 'none', background: 'white', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
-            {loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Enter System')}
-          </button>
+          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }} required />
+          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }} required />
+          <button disabled={loading} style={{ padding: '16px', borderRadius: '12px', border: 'none', background: 'white', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Enter System')}</button>
         </form>
-
         {message && <p style={{ color: '#ef4444', fontSize: '14px' }}>{message}</p>}
-
-        <button onClick={() => setIsSignUp(!isSignUp)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '14px', marginTop: '10px' }}>
-          {isSignUp ? "Already have an account? Sign In" : "Need an account? Sign Up"}
-        </button>
+        <button onClick={() => setIsSignUp(!isSignUp)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', fontSize: '14px', marginTop: '10px' }}>{isSignUp ? "Already have an account? Sign In" : "Need an account? Sign Up"}</button>
       </div>
     </div>
   );
@@ -89,23 +63,13 @@ function Auth({ onLogin }) {
 export default function App() {
   const [session, setSession] = useState(null);
 
-  // 1. Check for User Session on Load
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
-  if (!session) {
-    return <Auth />;
-  }
-
+  if (!session) return <Auth />;
   return <VisionBoard session={session} />;
 }
 
@@ -119,7 +83,11 @@ function VisionBoard({ session }) {
   const [uploading, setUploading] = useState(false);
   const [imageFile, setImageFile] = useState(null); 
   const [imagePreview, setImagePreview] = useState(null);
+  
+  // VOICE COMMAND STATES
+  const [isListening, setIsListening] = useState(false);
   const fileInputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('visionMode', mode);
@@ -127,10 +95,50 @@ function VisionBoard({ session }) {
 
   useEffect(() => {
     fetchThoughts();
-  }, [session]); // Re-fetch when session changes
+  }, [session]);
+
+  // --- VOICE LOGIC ---
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        let finalTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          }
+        }
+        if (finalTranscript) {
+           setCurrentInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech error", event.error);
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const toggleMic = () => {
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
+  // -------------------
 
   async function fetchThoughts() {
-    // FILTER: Only get thoughts that belong to the logged-in user
     const { data, error } = await supabase
       .from('thoughts')
       .select('*')
@@ -144,46 +152,33 @@ function VisionBoard({ session }) {
   }
 
   function calculateStreak(data) {
-    if (!data || data.length === 0) {
-      setStreak(0);
-      return;
-    }
+    if (!data || data.length === 0) { setStreak(0); return; }
     const uniqueDates = [...new Set(data.map(item => new Date(item.created_at).toDateString()))];
     const sortedDates = uniqueDates.map(d => new Date(d)).sort((a, b) => b - a);
     const today = new Date().toDateString();
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     
-    // Logic check...
-    if (sortedDates[0].toDateString() !== today && sortedDates[0].toDateString() !== yesterday.toDateString()) {
-      setStreak(0); return;
-    }
+    if (sortedDates[0].toDateString() !== today && sortedDates[0].toDateString() !== yesterday.toDateString()) { setStreak(0); return; }
     let currentStreak = 0;
     let checkDate = new Date();
     if (sortedDates[0].toDateString() !== today) checkDate.setDate(checkDate.getDate() - 1);
     
     for (let i = 0; i < sortedDates.length; i++) {
-        if (sortedDates[i].toDateString() === checkDate.toDateString()) {
-            currentStreak++;
-            checkDate.setDate(checkDate.getDate() - 1);
-        } else break;
+        if (sortedDates[i].toDateString() === checkDate.toDateString()) { currentStreak++; checkDate.setDate(checkDate.getDate() - 1); } else break;
     }
     setStreak(currentStreak);
   }
 
   const handleImageSelect = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
+    if (file) { setImageFile(file); setImagePreview(URL.createObjectURL(file)); }
   };
 
   const handleCapture = async () => {
     if (!currentInput.trim() && !imageFile) return;
     setUploading(true);
     let finalImageUrl = null;
-
     if (imageFile) {
       const fileName = `${Date.now()}-${imageFile.name}`;
       const { data } = await supabase.storage.from('images').upload(fileName, imageFile);
@@ -192,18 +187,7 @@ function VisionBoard({ session }) {
         finalImageUrl = urlData.publicUrl;
       }
     }
-
-    // INSERT: Include user_id
-    const { data, error } = await supabase
-      .from('thoughts')
-      .insert([{ 
-          text: currentInput, 
-          image_url: finalImageUrl, 
-          ignited: false,
-          user_id: session.user.id // <-- STAMP THE USER ID
-        }])
-      .select();
-
+    const { data } = await supabase.from('thoughts').insert([{ text: currentInput, image_url: finalImageUrl, ignited: false, user_id: session.user.id }]).select();
     if (data) {
       const newThoughts = [data[0], ...thoughts];
       setThoughts(newThoughts);
@@ -217,28 +201,18 @@ function VisionBoard({ session }) {
 
   const deleteThought = async (id) => {
     const { error } = await supabase.from('thoughts').delete().eq('id', id);
-    if (!error) {
-      const newThoughts = thoughts.filter(t => t.id !== id);
-      setThoughts(newThoughts);
-      calculateStreak(newThoughts);
-    }
+    if (!error) { const newThoughts = thoughts.filter(t => t.id !== id); setThoughts(newThoughts); calculateStreak(newThoughts); }
   };
 
   const toggleIgnite = async (id, currentStatus) => {
-    if (!currentStatus) {
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: mode === 'night' ? ['#c084fc', '#a855f7', '#ffffff'] : ['#fbbf24', '#f59e0b', '#ef4444'] });
-    }
+    if (!currentStatus) { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: mode === 'night' ? ['#c084fc', '#a855f7', '#ffffff'] : ['#fbbf24', '#f59e0b', '#ef4444'] }); }
     const { error } = await supabase.from('thoughts').update({ ignited: !currentStatus }).eq('id', id);
-    if (!error) {
-      setThoughts(thoughts.map(t => t.id === id ? { ...t, ignited: !t.ignited } : t));
-    }
+    if (!error) { setThoughts(thoughts.map(t => t.id === id ? { ...t, ignited: !t.ignited } : t)); }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
+  const handleLogout = async () => { await supabase.auth.signOut(); };
   const visibleThoughts = thoughts.filter(t => activeTab === 'targets' ? !t.ignited : t.ignited);
+  
   const nightStyle = { background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', color: 'white', minHeight: '100vh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' };
   const morningStyle = { background: 'linear-gradient(135deg, #fdfbf7 0%, #e2e8f0 100%)', color: 'black', minHeight: '100vh', padding: '24px', display: 'flex', flexDirection: 'column' };
 
@@ -258,7 +232,15 @@ function VisionBoard({ session }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {imagePreview && (<div style={{ position: 'relative', width: '100%', height: '220px', borderRadius: '16px', overflow: 'hidden', border: '1px solid #333', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}><img src={imagePreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /><button onClick={() => { setImageFile(null); setImagePreview(null); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button></div>)}
-            <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder="What are you building?" style={{ width: '100%', height: '120px', backgroundColor: 'rgba(26, 26, 26, 0.8)', border: '1px solid #333', color: 'white', outline: 'none', borderRadius: '16px', padding: '16px', fontSize: '18px', resize: 'none', backdropFilter: 'blur(10px)' }} disabled={uploading} />
+            
+            <div style={{ position: 'relative' }}>
+                <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder="What are you building?" style={{ width: '100%', height: '120px', backgroundColor: 'rgba(26, 26, 26, 0.8)', border: '1px solid #333', color: 'white', outline: 'none', borderRadius: '16px', padding: '16px', fontSize: '18px', resize: 'none', backdropFilter: 'blur(10px)' }} disabled={uploading} />
+                {/* MIC BUTTON */}
+                <button onClick={toggleMic} style={{ position: 'absolute', bottom: '16px', right: '16px', background: isListening ? '#ef4444' : '#333', color: 'white', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', boxShadow: isListening ? '0 0 10px #ef4444' : 'none' }}>
+                    {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+            </div>
+
             <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
             <div style={{ display: 'flex', gap: '12px' }}>
               <button onClick={() => fileInputRef.current.click()} disabled={uploading} style={{ backgroundColor: '#1a1a1a', color: '#c084fc', border: '1px solid #333', borderRadius: '16px', width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.1s' }}><ImageIcon size={24} /></button>
@@ -284,7 +266,6 @@ function VisionBoard({ session }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Sun size={32} color="#f59e0b" /><h1 style={{ fontSize: '42px', fontWeight: '800', lineHeight: '1', margin: 0, color: '#1e293b' }}>The Fuel.</h1></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff7ed', padding: '6px 12px', borderRadius: '20px', border: '1px solid #ffedd5' }}><Flame size={20} fill={streak > 0 ? "#f97316" : "none"} color="#f97316" /><span style={{ fontSize: '16px', fontWeight: 'bold', color: '#9a3412' }}>{streak} Day{streak !== 1 && 's'}</span></div>
           </div>
-          
           <div style={{ display: 'flex', gap: '5px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', width: 'fit-content', marginTop: '10px' }}>
             <button onClick={() => setActiveTab('targets')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: activeTab === 'targets' ? 'white' : 'transparent', boxShadow: activeTab === 'targets' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'targets' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Target size={16} /> Targets</button>
             <button onClick={() => setActiveTab('vault')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: activeTab === 'vault' ? 'white' : 'transparent', boxShadow: activeTab === 'vault' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'vault' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><Archive size={16} /> The Vault</button>
