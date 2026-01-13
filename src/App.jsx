@@ -179,19 +179,52 @@ function VisionBoard({ session }) {
     }
   };
 
+  // --- GRAND FINALE ANIMATION ---
+  const triggerGrandFinale = () => {
+    // A fireworks effect from both sides
+    const duration = 3 * 1000;
+    const animationEnd = Date.now() + duration;
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+    const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+    const interval = setInterval(function() {
+      const timeLeft = animationEnd - Date.now();
+
+      if (timeLeft <= 0) {
+        return clearInterval(interval);
+      }
+
+      const particleCount = 50 * (timeLeft / duration);
+      // Left side
+      confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+      // Right side
+      confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+    }, 250);
+  };
+
   const toggleCompleted = async (mission) => {
       const newCompleted = !mission.completed;
       const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false };
       
+      // Calculate if this was the last one
+      const nextMissions = missions.map(m => m.id === mission.id ? { ...m, ...updates } : m);
+      const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed);
+
       if (newCompleted && !mission.completed) {
           const goal = goals.find(g => g.id === mission.goal_id);
           const color = goal ? goal.color : '#cbd5e1';
-          confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 });
+          
+          if (allDone) {
+             triggerGrandFinale();
+          } else {
+             confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 });
+          }
       }
 
       const { error } = await supabase.from('missions').update(updates).eq('id', mission.id);
       if (!error) {
-        setMissions(missions.map(m => m.id === mission.id ? { ...m, ...updates } : m));
+        setMissions(nextMissions);
       }
   };
 
@@ -199,13 +232,21 @@ function VisionBoard({ session }) {
       const newCrushed = !mission.crushed;
       const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed };
 
+      // Calculate if this was the last one
+      const nextMissions = missions.map(m => m.id === mission.id ? { ...m, ...updates } : m);
+      const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed);
+
       if (newCrushed) {
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 });
+          if (allDone) {
+             triggerGrandFinale();
+          } else {
+             confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 });
+          }
       }
 
       const { error } = await supabase.from('missions').update(updates).eq('id', mission.id);
       if (!error) {
-        setMissions(missions.map(m => m.id === mission.id ? { ...m, ...updates } : m));
+        setMissions(nextMissions);
         // Also update history view if applicable
         if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]);
         else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id));
