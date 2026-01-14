@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 
@@ -9,6 +9,7 @@ function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -16,6 +17,13 @@ function Auth({ onLogin }) {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+
+    if (isSignUp && password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
+
     let result;
     if (isSignUp) {
       result = await supabase.auth.signUp({ email, password });
@@ -43,6 +51,11 @@ function Auth({ onLogin }) {
         <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }} required />
           <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }} required />
+          
+          {isSignUp && (
+            <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #333', background: '#111', color: 'white', fontSize: '16px', outline: 'none' }} required />
+          )}
+
           <button disabled={loading} style={{ padding: '16px', borderRadius: '12px', border: 'none', background: 'white', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>{loading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Enter System')}</button>
         </form>
         {message && <p style={{ color: '#ef4444', fontSize: '14px' }}>{message}</p>}
@@ -94,7 +107,7 @@ function VisionBoard({ session }) {
   const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const fireworksRef = useRef(null); // Container for fireworks
+  const fireworksRef = useRef(null); 
 
   const [mediaFile, setMediaFile] = useState(null); 
   const [audioBlob, setAudioBlob] = useState(null); 
@@ -164,68 +177,16 @@ function VisionBoard({ session }) {
     }
   };
 
-  // --- REAL FIREWORKS ENGINE 🎆 ---
+  // --- FIREWORKS ENGINE ---
   const triggerGrandFinale = () => {
     if (!fireworksRef.current) return;
-    
-    // Initialize the engine
     const fireworks = new Fireworks(fireworksRef.current, {
-      autoresize: true,
-      opacity: 0.5,
-      acceleration: 1.05,
-      friction: 0.97,
-      gravity: 1.5,
-      particles: 50,
-      traceLength: 3,
-      traceSpeed: 10,
-      explosion: 5,
-      intensity: 30, // Lots of fireworks
-      flickering: 50,
-      lineStyle: 'round',
-      hue: {
-        min: 0,
-        max: 360
-      },
-      delay: {
-        min: 30,
-        max: 60
-      },
-      rocketsPoint: {
-        min: 50,
-        max: 50
-      },
-      lineWidth: {
-        explosion: {
-          min: 1,
-          max: 3
-        },
-        trace: {
-          min: 1,
-          max: 2
-        }
-      },
-      brightness: {
-        min: 50,
-        max: 80
-      },
-      decay: {
-        min: 0.015,
-        max: 0.03
-      },
-      mouse: {
-        click: false,
-        move: false,
-        max: 1
-      }
+      autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round',
+      hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } },
+      brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 }
     });
-
-    // Start the show
     fireworks.start();
-
-    // Stop after 5 seconds
-    setTimeout(() => {
-      fireworks.waitStop(true); // Graceful stop
-    }, 5000);
+    setTimeout(() => { fireworks.waitStop(true); }, 5000);
   };
 
   const toggleCompleted = async (mission) => {
@@ -252,10 +213,7 @@ function VisionBoard({ session }) {
 
       if (newCrushed) {
           if (allDone) { triggerGrandFinale(); } 
-          else { 
-            // BIGGER burst for crushing
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); 
-          }
+          else { confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); }
       }
       const { error } = await supabase.from('missions').update(updates).eq('id', mission.id);
       if (!error) {
@@ -265,19 +223,10 @@ function VisionBoard({ session }) {
       }
   };
 
-  const handleNoteChange = (id, newText) => {
-      setMissions(missions.map(m => m.id === id ? { ...m, victory_note: newText } : m));
-  };
+  const handleNoteChange = (id, newText) => { setMissions(missions.map(m => m.id === id ? { ...m, victory_note: newText } : m)); };
+  const handleNoteSave = async (id, newText) => { await supabase.from('missions').update({ victory_note: newText }).eq('id', id); setCrushedHistory(crushedHistory.map(m => m.id === id ? { ...m, victory_note: newText } : m)); };
 
-  const handleNoteSave = async (id, newText) => {
-      await supabase.from('missions').update({ victory_note: newText }).eq('id', id);
-      setCrushedHistory(crushedHistory.map(m => m.id === id ? { ...m, victory_note: newText } : m));
-  };
-
-  const deleteMission = async (id) => {
-    const { error } = await supabase.from('missions').delete().eq('id', id);
-    if (!error) setMissions(missions.filter(m => m.id !== id));
-  };
+  const deleteMission = async (id) => { const { error } = await supabase.from('missions').delete().eq('id', id); if (!error) setMissions(missions.filter(m => m.id !== id)); };
 
   const handleFileSelect = (event, type) => {
     const file = event.target.files[0];
@@ -367,14 +316,18 @@ function VisionBoard({ session }) {
   const getGoalColor = (id) => { const g = goals.find(g => g.id === id); return g ? g.color : '#94a3b8'; }
   const getGoalTitle = (id) => { const g = goals.find(g => g.id === id); return g ? g.title : 'General'; }
 
-  const visibleThoughts = thoughts.filter(t => !t.ignited);
   const randomQuote = thoughts.filter(t => t.is_quote).length > 0 ? thoughts.filter(t => t.is_quote)[Math.floor(Math.random() * thoughts.filter(t => t.is_quote).length)] : null;
   const nightStyle = { background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', color: 'white', minHeight: '100vh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' };
   const morningStyle = { background: 'linear-gradient(135deg, #fdfbf7 0%, #e2e8f0 100%)', color: 'black', minHeight: '100vh', padding: '24px', display: 'flex', flexDirection: 'column' };
 
+  // Helper for sorting thoughts (Active first, then ignited)
+  const getSortedThoughts = () => {
+    const relevant = thoughts.filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id);
+    return relevant.sort((a, b) => Number(a.ignited) - Number(b.ignited)); // Unignited (0) first, Ignited (1) last
+  };
+
   return (
     <div style={mode === 'night' ? nightStyle : morningStyle}>
-       {/* FIREWORKS CONTAINER - Invisible until activated */}
        <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
 
        <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px', zIndex: 10 }}>
@@ -409,9 +362,9 @@ function VisionBoard({ session }) {
           )}
         </div>
 
+        {/* NIGHT MODE */}
         {mode === 'night' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-             
              {debugLog && <div style={{ background: debugLog.includes('Error') ? '#7f1d1d' : '#064e3b', color: debugLog.includes('Error') ? '#fecaca' : '#a7f3d0', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${debugLog.includes('Error') ? '#ef4444' : '#10b981'}` }}>{debugLog}</div>}
 
              {/* GOAL SELECTOR */}
@@ -463,7 +416,6 @@ function VisionBoard({ session }) {
                  </div>
                  <button onClick={handleCapture} disabled={uploading || isRecordingAudio} style={{ width: '100%', padding: '16px', backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '16px', boxShadow: '0 0 15px rgba(192, 132, 252, 0.3)' }}>{uploading ? 'Syncing...' : 'Capture'}</button>
                  
-                 {/* HIDDEN INPUTS */}
                  <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'image')} style={{ display: 'none' }} />
                  <input type="file" accept="video/*" capture="environment" ref={videoInputRef} onChange={(e) => handleFileSelect(e, 'video')} style={{ display: 'none' }} />
              </div>
@@ -539,7 +491,7 @@ function VisionBoard({ session }) {
                                         </button>
                                     </div>
                                     {m.crushed && (
-                                        <div style={{ marginLeft: '36px', marginTop: '10px', animation: 'fadeIn 0.5s' }}>
+                                        <div style={{ marginTop: '10px', animation: 'fadeIn 0.5s', display: 'flex', justifyContent: 'center' }}>
                                             <input 
                                                 type="text" 
                                                 placeholder="How did you crush it?" 
@@ -547,7 +499,7 @@ function VisionBoard({ session }) {
                                                 onChange={(e) => handleNoteChange(m.id, e.target.value)} 
                                                 onBlur={(e) => handleNoteSave(m.id, e.target.value)}
                                                 onClick={(e) => e.stopPropagation()} 
-                                                style={{ width: '100%', padding: '12px', fontSize: '14px', border: '1px solid #fed7aa', borderRadius: '12px', background: '#fff', color: '#c2410c', outline: 'none' }} 
+                                                style={{ width: '100%', padding: '12px', fontSize: '14px', border: '1px solid #fed7aa', borderRadius: '12px', background: '#fff', color: '#c2410c', outline: 'none', textAlign: 'center' }} 
                                             />
                                         </div>
                                     )}
@@ -583,20 +535,19 @@ function VisionBoard({ session }) {
                     
                     <h3 style={{ fontSize: '12px', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '1px', marginBottom: '10px' }}>The Fuel (Media)</h3>
                     <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', paddingBottom: '20px', scrollbarWidth: 'none' }}>
-                        {thoughts
-                            .filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id)
-                            .filter(t => !t.ignited)
-                            .map(t => (
-                            <div key={t.id} style={{ minWidth: '260px', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                {t.image_url && <img src={t.image_url} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />}
+                        {getSortedThoughts().map(t => (
+                            <div key={t.id} style={{ minWidth: '260px', background: t.ignited ? '#f8fafc' : 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', opacity: t.ignited ? 0.7 : 1 }}>
+                                {t.image_url && <img src={t.image_url} style={{ width: '100%', height: '180px', objectFit: 'cover', filter: t.ignited ? 'grayscale(100%)' : 'none' }} />}
                                 {t.video_url && <video src={t.video_url} controls style={{ width: '100%', height: '180px', background: 'black' }} />}
                                 <div style={{ padding: '15px' }}>
-                                    <p style={{ margin: 0, fontWeight: '600', fontSize: '16px', color: '#1e293b' }}>"{t.text}"</p>
-                                    <button onClick={() => toggleIgnite(t.id, t.ignited)} style={{ marginTop: '10px', width: '100%', padding: '8px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold' }}>Ignite</button>
+                                    <p style={{ margin: 0, fontWeight: '600', fontSize: '16px', color: t.ignited ? '#94a3b8' : '#1e293b', textDecoration: t.ignited ? 'line-through' : 'none' }}>"{t.text}"</p>
+                                    <button onClick={() => toggleIgnite(t.id, t.ignited)} style={{ marginTop: '10px', width: '100%', padding: '8px', background: t.ignited ? '#fff7ed' : '#f1f5f9', color: t.ignited ? '#f59e0b' : '#64748b', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                        {t.ignited ? <><RefreshCcw size={12} /> Undo Ignite</> : 'Ignite'}
+                                    </button>
                                 </div>
                             </div>
                         ))}
-                         {thoughts.filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id).filter(t => !t.ignited).length === 0 && <p style={{ color: '#cbd5e1', fontSize: '14px' }}>No fuel yet.</p>}
+                        {getSortedThoughts().length === 0 && <p style={{ color: '#cbd5e1', fontSize: '14px' }}>No fuel yet.</p>}
                     </div>
 
                     <div style={{ marginTop: '20px' }}>
