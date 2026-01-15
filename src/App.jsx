@@ -4,15 +4,23 @@ import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X,
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 
-// --- GLOBAL STYLES (MOBILE FIXES) ---
+// --- GLOBAL STYLES (MOBILE FIXES + INVISIBLE SCROLLBAR) ---
 const globalStyles = `
-  * { box-sizing: border-box; touch-action: manipulation; } /* touch-action stops double-tap zoom */
+  * { box-sizing: border-box; touch-action: manipulation; }
   html, body { 
     margin: 0; 
     padding: 0; 
     overflow-x: hidden; 
     -webkit-text-size-adjust: 100%; 
-    overscroll-behavior-y: none; /* Stops the 'bounce' effect on scroll */
+    overscroll-behavior-y: none;
+    scrollbar-width: none; /* Firefox: Hide Scrollbar */
+    -ms-overflow-style: none; /* IE/Edge: Hide Scrollbar */
+  }
+  /* Chrome/Safari/Opera: Hide Scrollbar */
+  ::-webkit-scrollbar { 
+    display: none; 
+    width: 0px;
+    background: transparent;
   }
   input, textarea, button, select { 
     font-size: 16px !important; 
@@ -135,16 +143,11 @@ function VisionBoard({ session }) {
   // --- MOBILE GESTURE BLOCKER ---
   useEffect(() => {
     const preventZoom = (e) => {
-        // Prevent pinch zoom
         if (e.touches.length > 1) {
             e.preventDefault();
         }
     };
-    
-    // Add passive: false to allow preventDefault
     document.addEventListener('touchmove', preventZoom, { passive: false });
-    
-    // Prevent double-tap to zoom
     let lastTouchEnd = 0;
     const preventDoubleTap = (e) => {
         const now = (new Date()).getTime();
@@ -154,7 +157,6 @@ function VisionBoard({ session }) {
         lastTouchEnd = now;
     };
     document.addEventListener('touchend', preventDoubleTap, { passive: false });
-
     return () => {
         document.removeEventListener('touchmove', preventZoom);
         document.removeEventListener('touchend', preventDoubleTap);
