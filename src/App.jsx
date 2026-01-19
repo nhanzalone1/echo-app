@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
@@ -128,6 +128,7 @@ function VisionBoard({ session }) {
   const [partnerModal, setPartnerModal] = useState(false);
   const [partnerEmail, setPartnerEmail] = useState('');
   const [currentProfile, setCurrentProfile] = useState(null);
+  const [notification, setNotification] = useState(null); // Replaces alert()
 
   const goalColors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#64748b'];
   const [newGoalColor, setNewGoalColor] = useState(goalColors[0]);
@@ -159,8 +160,12 @@ function VisionBoard({ session }) {
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
   useEffect(() => { fetchThoughts(); fetchMissions(); fetchGoals(); fetchCrushedHistory(); fetchProfile(); }, [session]);
 
-  // --- FETCHING (NOW OPEN TO PARTNERS via RLS) ---
-  // We removed .eq('user_id', session.user.id) so RLS decides who you see
+  // --- SHOW NOTIFICATION ---
+  const showNotification = (msg, type = 'success') => {
+      setNotification({ msg, type });
+      setTimeout(() => setNotification(null), 3000);
+  };
+
   async function fetchGoals() { const { data } = await supabase.from('goals').select('*'); if (data) setGoals(data); }
   async function fetchThoughts() { const { data } = await supabase.from('thoughts').select('*').order('created_at', { ascending: false }); if (data) { setThoughts(data); calculateStreak(data); } }
   async function fetchMissions() { const { data } = await supabase.from('missions').select('*').eq('is_active', true).order('created_at', { ascending: true }); if (data) { setMissions(data || []); const recent = data.slice(-10); const uniqueRecents = [...new Map(recent.map(item => [item['task'], item])).values()]; setRecentMissions(uniqueRecents); } }
@@ -171,33 +176,46 @@ function VisionBoard({ session }) {
       if(data) setCurrentProfile(data);
   }
 
-  const linkPartner = async () => {
+  // --- HANDSHAKE PROTOCOL ---
+  const sendInvite = async () => {
       if(!partnerEmail) return;
       // 1. Find partner ID
       const { data: partnerData, error: searchError } = await supabase.from('profiles').select('id').eq('email', partnerEmail).single();
       
-      if(searchError || !partnerData) {
-          alert("Partner not found. They must have an account first.");
-          return;
-      }
-      
-      if(partnerData.id === session.user.id) {
-          alert("You cannot link to yourself.");
-          return;
-      }
+      if(searchError || !partnerData) { showNotification("Partner not found.", "error"); return; }
+      if(partnerData.id === session.user.id) { showNotification("Cannot link to yourself.", "error"); return; }
 
-      // 2. Link them
-      const { error: updateError } = await supabase.from('profiles').update({ partner_id: partnerData.id, partner_email: partnerEmail }).eq('id', session.user.id);
+      // 2. Set Status to PENDING for both
+      // Update ME
+      await supabase.from('profiles').update({ 
+          partner_id: partnerData.id, partner_email: partnerEmail, status: 'pending', initiator_id: session.user.id 
+      }).eq('id', session.user.id);
       
-      if(!updateError) {
-          alert("Partner Linked! You will now see their visions.");
-          setPartnerModal(false);
-          fetchProfile();
-          // Refresh data to pull partner items
-          fetchGoals(); fetchThoughts(); fetchMissions(); fetchCrushedHistory();
-      } else {
-          alert("Error linking partner.");
-      }
+      // Update THEM
+      await supabase.from('profiles').update({ 
+          partner_id: session.user.id, partner_email: session.user.email, status: 'pending', initiator_id: session.user.id 
+      }).eq('id', partnerData.id);
+      
+      showNotification("Invite Sent. Waiting for response.");
+      fetchProfile();
+  };
+
+  const acceptInvite = async () => {
+      // Update BOTH to 'active'
+      await supabase.from('profiles').update({ status: 'active' }).eq('id', session.user.id);
+      await supabase.from('profiles').update({ status: 'active' }).eq('id', currentProfile.partner_id);
+      showNotification("Alliance Established.", "success");
+      confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#60a5fa', '#ffffff'] });
+      fetchProfile();
+      fetchGoals(); fetchThoughts(); fetchMissions();
+  };
+
+  const declineInvite = async () => {
+      // Reset BOTH to null
+      await supabase.from('profiles').update({ partner_id: null, partner_email: null, status: null, initiator_id: null }).eq('id', session.user.id);
+      await supabase.from('profiles').update({ partner_id: null, partner_email: null, status: null, initiator_id: null }).eq('id', currentProfile.partner_id);
+      showNotification("Invite Declined.", "neutral");
+      fetchProfile();
   };
 
   const clearDailyMissions = async () => {
@@ -287,7 +305,6 @@ function VisionBoard({ session }) {
   const deleteThought = async (id) => { const { error } = await supabase.from('thoughts').delete().eq('id', id); if (!error) { const newThoughts = thoughts.filter(t => t.id !== id); setThoughts(newThoughts); calculateStreak(newThoughts); } };
   const toggleIgnite = async (id, currentStatus) => { if (!currentStatus) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: mode === 'night' ? ['#c084fc', '#a855f7', '#ffffff'] : ['#fbbf24', '#f59e0b', '#ef4444'] }); const { error } = await supabase.from('thoughts').update({ ignited: !currentStatus }).eq('id', id); if (!error) setThoughts(thoughts.map(t => t.id === id ? { ...t, ignited: !t.ignited } : t)); };
   
-  // --- NEW ARCHIVE FUNCTION ---
   const toggleArchive = async (id, currentStatus) => { 
       const { error } = await supabase.from('thoughts').update({ archived: !currentStatus }).eq('id', id); 
       if (!error) setThoughts(thoughts.map(t => t.id === id ? { ...t, archived: !currentStatus } : t)); 
@@ -301,7 +318,6 @@ function VisionBoard({ session }) {
   const nightStyle = { background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', color: 'white', minHeight: '100dvh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' };
   const morningStyle = { background: 'linear-gradient(135deg, #fdfbf7 0%, #e2e8f0 100%)', color: 'black', minHeight: '100dvh', padding: '24px', display: 'flex', flexDirection: 'column' };
   
-  // Filtered Thoughts
   const getDisplayedThoughts = () => { 
       const relevant = thoughts.filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id); 
       return relevant.filter(t => showArchives ? t.archived : !t.archived).sort((a, b) => Number(a.ignited) - Number(b.ignited)); 
@@ -315,14 +331,78 @@ function VisionBoard({ session }) {
     <div style={mode === 'night' ? nightStyle : morningStyle}>
        <style>{globalStyles}</style>
        <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
+       
+       {/* --- NOTIFICATION TOAST --- */}
+       {notification && (
+           <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'error' ? '#ef4444' : (notification.type === 'success' ? '#10b981' : '#3b82f6'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}>
+               {notification.msg}
+           </div>
+       )}
+
         {deleteModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '85%', maxWidth: '300px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}> <h3 style={{ margin: '0 0 16px 0', color: 'white', fontSize: '18px' }}>{deleteModal.title}</h3> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setDeleteModal({ isOpen: false, type: null, id: null, title: '' })} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={executeDelete} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button> </div> </div> </div> )}
         {protocolModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #a855f7', boxShadow: '0 0 40px rgba(168, 85, 247, 0.3)' }}> <Fingerprint size={48} color="#c084fc" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Contract With Tomorrow</h3> <p style={{ margin: '0 0 25px 0', color: '#cbd5e1', fontSize: '15px', lineHeight: '1.5' }}> "Does this plan demand your absolute best, or are you negotiating with weakness? Once you execute, there are no edits. Only results." </p> <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}> <button onClick={executeProtocol} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}> EXECUTE PROTOCOL </button> <button onClick={() => setProtocolModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> ABORT </button> </div> </div> </div> )}
         
-        {/* --- PARTNER PROTOCOL MODAL --- */}
-        {partnerModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}> <Users size={48} color="#60a5fa" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Ally Protocol</h3> <p style={{ margin: '0 0 20px 0', color: '#cbd5e1', fontSize: '14px' }}> "Iron sharpens iron. Link with one partner to see their visions and hold them accountable." </p> {currentProfile?.partner_id ? ( <div style={{ background: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}> <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>CURRENTLY LINKED TO:</p> <p style={{ color: '#60a5fa', fontWeight: 'bold', margin: '5px 0 0 0' }}>{currentProfile.partner_email}</p> </div> ) : ( <input type="email" placeholder="Partner Email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#334155', border: '1px solid #475569', color: 'white', marginBottom: '20px', outline: 'none' }} /> )} <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}> {!currentProfile?.partner_id && <button onClick={linkPartner} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}> <LinkIcon size={16} /> LINK PARTNER </button>} <button onClick={() => setPartnerModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> CLOSE </button> </div> </div> </div> )}
+        {/* --- PARTNER PROTOCOL MODAL (HANDSHAKE) --- */}
+        {partnerModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> 
+            <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}> 
+                <Users size={48} color={currentProfile?.status === 'active' ? '#10b981' : '#60a5fa'} style={{ marginBottom: '20px' }} /> 
+                <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Ally Protocol</h3> 
+                
+                {/* STATE 1: ACTIVE ALLIANCE */}
+                {currentProfile?.status === 'active' && (
+                    <>
+                        <p style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: ACTIVE</p>
+                        <div style={{ background: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}> 
+                            <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>LINKED PARTNER:</p> 
+                            <p style={{ color: 'white', fontWeight: 'bold', margin: '5px 0 0 0' }}>{currentProfile.partner_email}</p> 
+                        </div>
+                        <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> SEVER CONNECTION </button>
+                    </>
+                )}
 
+                {/* STATE 2: PENDING (SENT BY ME) */}
+                {currentProfile?.status === 'pending' && currentProfile?.initiator_id === session.user.id && (
+                    <>
+                        <p style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: PENDING ACCEPTANCE</p>
+                        <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>Invitation sent to <b>{currentProfile.partner_email}</b>. Waiting for them to confirm.</p>
+                        <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: '#334155', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}> CANCEL INVITE </button>
+                    </>
+                )}
+
+                {/* STATE 3: PENDING (INCOMING) */}
+                {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && (
+                    <>
+                        <p style={{ color: '#f97316', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>INCOMING REQUEST</p>
+                        <p style={{ color: 'white', fontSize: '16px', marginBottom: '20px' }}><b>{currentProfile.partner_email}</b> wants to link protocols.</p>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                            <button onClick={acceptInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><Check size={20} /></button>
+                            <button onClick={declineInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><XCircle size={20} /></button>
+                        </div>
+                    </>
+                )}
+
+                {/* STATE 4: NO PARTNER */}
+                {!currentProfile?.partner_id && (
+                    <>
+                        <p style={{ margin: '0 0 20px 0', color: '#cbd5e1', fontSize: '14px' }}> "Iron sharpens iron. Link with one partner to see their visions." </p> 
+                        <input type="email" placeholder="Partner Email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#334155', border: '1px solid #475569', color: 'white', marginBottom: '20px', outline: 'none' }} /> 
+                        <button onClick={sendInvite} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}> <LinkIcon size={16} /> SEND INVITE </button>
+                    </>
+                )}
+
+                <button onClick={() => setPartnerModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> CLOSE </button> 
+            </div> 
+        </div> )}
+
+        {/* --- NOTIFICATION BADGE ON ALLY ICON --- */}
        <div style={{ position: 'absolute', top: '16px', right: '16px', display: 'flex', gap: '8px', zIndex: 10 }}>
-          <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> <Users size={16} color={mode === 'night' ? 'white' : 'black'} /> </button>
+          <div style={{ position: 'relative' }}>
+              <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> <Users size={16} color={mode === 'night' ? 'white' : 'black'} /> </button>
+              {/* Red Dot if Incoming Request */}
+              {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && (
+                  <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid #1f1f22' }}></div>
+              )}
+          </div>
           {mode === 'morning' ? ( <button onClick={() => setMode('night')} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}> <Edit3 size={16} /> </button> ) : ( <button onClick={() => setMode('morning')} style={{ border: '1px solid #777', padding: '8px 16px', borderRadius: '20px', fontSize: '12px', color: '#888', background: 'rgba(0,0,0,0.5)', cursor: 'pointer', backdropFilter: 'blur(4px)' }}>Morning ☀️</button> )}
           <button onClick={handleLogout} style={{ border: '1px solid #ef4444', padding: '8px', borderRadius: '50%', color: '#ef4444', background: 'rgba(0,0,0,0.1)', cursor: 'pointer' }}><LogOut size={14} /></button>
        </div>
