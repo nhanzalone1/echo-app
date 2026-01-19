@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3 } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 
@@ -123,6 +123,8 @@ function VisionBoard({ session }) {
   const [debugLog, setDebugLog] = useState('');
   
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, type: null, id: null, title: '' });
+  // --- PROTOCOL MODAL STATE ---
+  const [protocolModal, setProtocolModal] = useState(false);
 
   const goalColors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#64748b'];
   const [newGoalColor, setNewGoalColor] = useState(goalColors[0]);
@@ -256,13 +258,14 @@ function VisionBoard({ session }) {
 
   // --- LOCK IN PROTOCOL (ONE WAY DOOR) ---
   const handleLockIn = () => {
-     if(missions.filter(m => !m.completed && !m.crushed).length === 0) {
-         if(!window.confirm("Mission Log is empty. Are you sure you want to deploy?")) return;
-     }
-     
+     // Triggers the modal instead of browser popup
+     setProtocolModal(true);
+  };
+
+  const executeProtocol = () => {
+     setProtocolModal(false);
      // Trigger Effect
      confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] });
-     
      // Delay transition
      setTimeout(() => {
         setMode('morning');
@@ -426,6 +429,27 @@ function VisionBoard({ session }) {
                     <div style={{ display: 'flex', gap: '10px' }}>
                         <button onClick={() => setDeleteModal({ isOpen: false, type: null, id: null, title: '' })} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
                         <button onClick={executeDelete} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- CUSTOM PROTOCOL (LOCK IN) MODAL --- */}
+        {protocolModal && (
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+                <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #a855f7', boxShadow: '0 0 40px rgba(168, 85, 247, 0.3)' }}>
+                    <Fingerprint size={48} color="#c084fc" style={{ marginBottom: '20px' }} />
+                    <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Contract With Tomorrow</h3>
+                    <p style={{ margin: '0 0 25px 0', color: '#cbd5e1', fontSize: '15px', lineHeight: '1.5' }}>
+                        "Does this plan demand your absolute best, or are you negotiating with weakness? Once you execute, there are no edits. Only results."
+                    </p>
+                    <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                        <button onClick={executeProtocol} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                            EXECUTE PROTOCOL
+                        </button>
+                        <button onClick={() => setProtocolModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}>
+                            ABORT
+                        </button>
                     </div>
                 </div>
             </div>
