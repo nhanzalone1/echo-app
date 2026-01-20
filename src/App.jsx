@@ -336,7 +336,7 @@ function VisionBoard({ session }) {
                       </button>
                       <div style={{ height: '1px', background: '#334155', margin: '4px 0' }}></div>
                       <button onClick={handleLogout} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: '#ef4444', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
-                          <SignOutIcon size={16} /> Sign Out
+                          <LogOut size={16} /> Sign Out
                       </button>
                   </div>
               )}
