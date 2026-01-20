@@ -89,7 +89,7 @@ function VisionBoard({ session }) {
   const [cheerModal, setCheerModal] = useState({ isOpen: false, missionId: null });
   const [cheerInput, setCheerInput] = useState('');
   const [historyModal, setHistoryModal] = useState(false);
-  const [historyData, setHistoryData] = useState([]); // For calendar
+  const [historyData, setHistoryData] = useState([]);
   
   // Draft State for Victory Notes
   const [tempVictoryNotes, setTempVictoryNotes] = useState({});
@@ -103,7 +103,7 @@ function VisionBoard({ session }) {
   const [partnerModal, setPartnerModal] = useState(false);
   const [partnerEmail, setPartnerEmail] = useState('');
   const [currentProfile, setCurrentProfile] = useState(null);
-  const [partnerProfile, setPartnerProfile] = useState(null); // Fetch partner details
+  const [partnerProfile, setPartnerProfile] = useState(null);
   const [notification, setNotification] = useState(null);
 
   // DATA STREAMS
@@ -118,7 +118,7 @@ function VisionBoard({ session }) {
   const [newGoalColor, setNewGoalColor] = useState(goalColors[0]);
 
   const fileInputRef = useRef(null);
-  const avatarInputRef = useRef(null); // New ref for avatar upload
+  const avatarInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const fireworksRef = useRef(null); 
@@ -148,7 +148,7 @@ function VisionBoard({ session }) {
 
   // --- DATA FETCHING ---
   const fetchAllData = useCallback(async () => {
-      const profile = await fetchProfile(); // Get my profile
+      const profile = await fetchProfile(); 
       if(profile?.partner_id) fetchPartnerProfile(profile.partner_id);
 
       const { data: gData } = await supabase.from('goals').select('*');
@@ -168,7 +168,7 @@ function VisionBoard({ session }) {
       const { data: mData } = await supabase.from('missions').select('*').order('created_at', { ascending: true });
       if (mData) {
           const myHistory = mData.filter(i => i.user_id === session.user.id);
-          setHistoryData(myHistory); // Save all for the calendar
+          setHistoryData(myHistory); 
 
           setMyMissions(myHistory.filter(i => i.is_active));
           setPartnerMissions(mData.filter(i => i.user_id !== session.user.id && i.is_active));
@@ -244,7 +244,6 @@ function VisionBoard({ session }) {
 
   // --- HISTORY CALENDAR LOGIC ---
   const getHistoryDays = () => {
-      // Group missions by date
       const grouped = {};
       historyData.forEach(m => {
           const date = new Date(m.created_at).toDateString();
@@ -253,7 +252,6 @@ function VisionBoard({ session }) {
           if(m.completed) grouped[date].completed++;
           if(m.crushed) grouped[date].crushed++;
       });
-      // Convert to array for last 14 days
       const days = [];
       for(let i=13; i>=0; i--) {
           const d = new Date();
@@ -265,7 +263,7 @@ function VisionBoard({ session }) {
       return days;
   };
 
-  // ... (Invite/Mission/Goal logic remains same as previous block, omitted for brevity, pasting main structural changes below) ...
+  // ... (Invite/Mission/Goal logic omitted for brevity, it is the same as before) ...
   const sendInvite = async () => { if(!partnerEmail) return; const { error } = await supabase.rpc('send_ally_invite', { target_email: partnerEmail }); if (error) { showNotification(error.message, "error"); } else { showNotification("Invite Sent.", "success"); fetchProfile(); } };
   const acceptInvite = async () => { const { error } = await supabase.rpc('confirm_alliance'); if (!error) { showNotification("Alliance Established.", "success"); confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#60a5fa', '#ffffff'] }); fetchProfile(); fetchAllData(); } };
   const declineInvite = async () => { const { error } = await supabase.rpc('sever_connection'); if (!error) { showNotification("Connection Severed.", "neutral"); fetchProfile(); } };
@@ -311,7 +309,9 @@ function VisionBoard({ session }) {
     <div style={mode === 'night' ? nightStyle : morningStyle}>
        <style>{globalStyles}</style>
        <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
-       {notification && ( <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
+       
+       {/* --- NOTIFICATION TOAST (FIXED POSITION) --- */}
+       {notification && ( <div style={{ position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
        
        {/* --- HISTORY CALENDAR MODAL --- */}
        {historyModal && (
@@ -393,9 +393,9 @@ function VisionBoard({ session }) {
           {mode === 'morning' && ( <div style={{ display: 'flex', gap: '5px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', width: '100%', marginTop: '10px', marginBottom: '10px' }}> <button onClick={() => { setActiveTab('mission'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'mission' ? 'white' : 'transparent', boxShadow: activeTab === 'mission' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'mission' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><ListTodo size={16} /> Mission</button> <button onClick={() => setActiveTab('vision')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'vision' ? 'white' : 'transparent', boxShadow: activeTab === 'vision' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'vision' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Eye size={16} /> Vision</button> <button onClick={() => { setActiveTab('ally'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'ally' ? 'white' : 'transparent', boxShadow: activeTab === 'ally' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'ally' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Users size={16} /> Ally</button> </div> )}
         </div>
 
-        {/* ... (Night Mode Goals / Input - Same as before) ... */}
         {mode === 'night' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+             {/* ... (Night Mode Logic - Same as before) ... */}
              {debugLog && <div style={{ background: debugLog.includes('Error') ? '#7f1d1d' : '#064e3b', color: debugLog.includes('Error') ? '#fecaca' : '#a7f3d0', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${debugLog.includes('Error') ? '#ef4444' : '#10b981'}` }}>{debugLog}</div>}
              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}> 
                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}> 
@@ -470,7 +470,7 @@ function VisionBoard({ session }) {
           </div>
         )}
 
-        {/* ... (Morning Mode Logic - Same as before) ... */}
+        {/* ... (Morning Mode Renders Same as Before) ... */}
         {mode === 'morning' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
             
@@ -511,7 +511,7 @@ function VisionBoard({ session }) {
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {partnerMissions.map(m => (
-                                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', borderRadius: '12px', background: m.crushed ? '#fff7ed' : (m.completed ? '#f0fdf4' : '#f8fafc'), borderLeft: `4px solid ${getGoalColor(m.goal_id)}`, border: m.crushed ? '1px solid #fdba74' : '1px solid #e2e8f0', borderLeftWidth: '4px', opacity: m.completed && !m.crushed ? 0.7 : 1 }}>
+                                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', borderRadius: '12px', background: m.completed ? '#f0fdf4' : '#f8fafc', borderLeft: `4px solid ${getGoalColor(m.goal_id)}`, border: '1px solid #e2e8f0', borderLeftWidth: '4px', opacity: m.completed && !m.crushed ? 0.7 : 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         {/* --- PARTNER AVATAR ON CARD --- */}
                                         <div style={{ marginRight: '8px' }}>
