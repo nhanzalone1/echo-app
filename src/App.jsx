@@ -171,26 +171,19 @@ function VisionBoard({ session }) {
 
   // --- REALTIME ENGINE ---
   useEffect(() => {
-    // Subscribe to ALL relevant tables
     const channel = supabase.channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
-        // Trigger a fresh fetch on any change
         fetchAllData(); 
-        
-        // Custom Notifications for Partner Activity
         if (payload.table === 'missions' && payload.eventType === 'UPDATE') {
-            // Did partner complete a task?
             if (payload.new.completed && !payload.old.completed && payload.new.user_id !== session.user.id) {
                showNotification("Partner completed a mission!", "success");
             }
-            // Did partner send a cheer?
             if (payload.new.cheer_note && payload.new.cheer_note !== payload.old.cheer_note && payload.new.user_id === session.user.id) {
                showNotification(`Partner sent a boost: "${payload.new.cheer_note}"`);
             }
         }
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [session, fetchAllData]);
   
