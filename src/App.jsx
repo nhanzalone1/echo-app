@@ -13,15 +13,6 @@ const globalStyles = `
   -webkit-tap-highlight-color: transparent;
 `;
 
-// --- DOG SILHOUETTE ICON (The Tribute Fallback) ---
-const DogIcon = ({ size = 42, color = "currentColor" }) => (
-  <div style={{ width: size, height: size, borderRadius: '50%', background: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fbbf24', boxShadow: '0 0 10px rgba(251, 191, 36, 0.5)', overflow: 'hidden' }}>
-    <svg width="60%" height="60%" viewBox="0 0 24 24" fill="#fbbf24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M4 14C4 14 5 13 6 13C7 13 8 14 8 14C8 14 8.5 11 11 9C13.5 7 17 6 17 6L19 4L21 6C21 6 20 8 19 9C18 10 17 10 17 10L18 13L16 16L14 16C14 16 12 19 10 19C8 19 6 18 6 18L4 14Z" stroke="none" />
-    </svg>
-  </div>
-);
-
 // --- AUTH COMPONENT ---
 function Auth({ onLogin }) {
   const [loading, setLoading] = useState(false);
@@ -102,7 +93,6 @@ function VisionBoard({ session }) {
   
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [imageError, setImageError] = useState(false); 
   const menuRef = useRef(null);
   
   const [tempVictoryNotes, setTempVictoryNotes] = useState({});
@@ -225,7 +215,6 @@ function VisionBoard({ session }) {
           setCurrentProfile({ ...currentProfile, avatar_url: publicUrl });
           showNotification("Profile Picture Updated!", "success");
           setShowProfileMenu(false);
-          setImageError(false); 
       } catch (error) { showNotification(error.message, "error"); } finally { setUploading(false); }
   };
 
@@ -327,20 +316,10 @@ function VisionBoard({ session }) {
           <div style={{ position: 'relative' }} ref={menuRef}>
               <input type="file" ref={avatarInputRef} onChange={handleAvatarUpload} accept="image/*" style={{ display: 'none' }} />
               <button onClick={() => setShowProfileMenu(!showProfileMenu)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}> 
-                  {currentProfile?.avatar_url && !imageError ? (
-                      <img 
-                        src={currentProfile.avatar_url} 
-                        onError={() => setImageError(true)}
-                        style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${mode === 'night' ? '#333' : '#cbd5e1'}` }} 
-                      />
-                  ) : (
-                      // FAILSAFE TRIBUTE: Used if no image OR if image fails to load
-                      <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'black', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fbbf24', boxShadow: '0 0 10px rgba(251, 191, 36, 0.5)', overflow: 'hidden' }}>
-                        <img src="/tribute.png" onError={(e) => { e.target.style.display='none'; setImageError(true); }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        {/* If tribute.png fails, show SVG icon */}
-                        {imageError && <DogIcon size={42} />}
-                      </div>
-                  )}
+                  <img 
+                    src={currentProfile?.avatar_url || '/tribute.png'} 
+                    style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: currentProfile?.avatar_url ? `2px solid ${mode === 'night' ? '#333' : '#cbd5e1'}` : '2px solid #fbbf24', boxShadow: currentProfile?.avatar_url ? 'none' : '0 0 10px rgba(251, 191, 36, 0.5)' }} 
+                  />
               </button>
               
               {/* PROFILE DROPDOWN MENU */}
@@ -360,13 +339,11 @@ function VisionBoard({ session }) {
               )}
           </div>
 
-          {/* --- TOP RIGHT: ALLY --- */}
-          {(mode === 'morning' || currentProfile?.status === 'pending') && (
-              <div style={{ position: 'relative' }}> 
-                  <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> <Users size={20} color={mode === 'night' ? 'white' : 'black'} /> </button> 
-                  {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid #1f1f22' }}></div> )} 
-              </div>
-          )}
+          {/* --- TOP RIGHT: ALLY (ALWAYS VISIBLE) --- */}
+          <div style={{ position: 'relative' }}> 
+              <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> <Users size={20} color={mode === 'night' ? 'white' : 'black'} /> </button> 
+              {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid #1f1f22' }}></div> )} 
+          </div>
        </div>
 
       <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
