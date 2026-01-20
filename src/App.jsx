@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
@@ -88,8 +88,10 @@ function VisionBoard({ session }) {
   const [protocolModal, setProtocolModal] = useState(false);
   const [cheerModal, setCheerModal] = useState({ isOpen: false, missionId: null });
   const [cheerInput, setCheerInput] = useState('');
+  const [historyModal, setHistoryModal] = useState(false);
+  const [historyData, setHistoryData] = useState([]); // For calendar
   
-  // Draft State for Victory Notes (before confirming)
+  // Draft State for Victory Notes
   const [tempVictoryNotes, setTempVictoryNotes] = useState({});
 
   // Privacy States
@@ -101,6 +103,7 @@ function VisionBoard({ session }) {
   const [partnerModal, setPartnerModal] = useState(false);
   const [partnerEmail, setPartnerEmail] = useState('');
   const [currentProfile, setCurrentProfile] = useState(null);
+  const [partnerProfile, setPartnerProfile] = useState(null); // Fetch partner details
   const [notification, setNotification] = useState(null);
 
   // DATA STREAMS
@@ -115,6 +118,7 @@ function VisionBoard({ session }) {
   const [newGoalColor, setNewGoalColor] = useState(goalColors[0]);
 
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null); // New ref for avatar upload
   const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const fireworksRef = useRef(null); 
@@ -144,8 +148,9 @@ function VisionBoard({ session }) {
 
   // --- DATA FETCHING ---
   const fetchAllData = useCallback(async () => {
-      await fetchProfile(); // Ensure profile is fresh
-      
+      const profile = await fetchProfile(); // Get my profile
+      if(profile?.partner_id) fetchPartnerProfile(profile.partner_id);
+
       const { data: gData } = await supabase.from('goals').select('*');
       if (gData) {
           setMyGoals(gData.filter(i => i.user_id === session.user.id));
@@ -159,12 +164,16 @@ function VisionBoard({ session }) {
           calculateStreak(tData.filter(i => i.user_id === session.user.id));
       }
       
+      // Fetch ALL missions for History
       const { data: mData } = await supabase.from('missions').select('*').order('created_at', { ascending: true });
       if (mData) {
-          setMyMissions(mData.filter(i => i.user_id === session.user.id && i.is_active));
+          const myHistory = mData.filter(i => i.user_id === session.user.id);
+          setHistoryData(myHistory); // Save all for the calendar
+
+          setMyMissions(myHistory.filter(i => i.is_active));
           setPartnerMissions(mData.filter(i => i.user_id !== session.user.id && i.is_active));
           
-          const recent = mData.filter(i => i.user_id === session.user.id).slice(-10); 
+          const recent = myHistory.slice(-10); 
           const uniqueRecents = [...new Map(recent.map(item => [item['task'], item])).values()];
           setRecentMissions(uniqueRecents);
           
@@ -177,21 +186,14 @@ function VisionBoard({ session }) {
     const channel = supabase.channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
         fetchAllData(); 
-        
-        // --- CUSTOM NOTIFICATIONS ---
         if (payload.table === 'missions' && payload.eventType === 'UPDATE') {
             const isMe = payload.new.user_id === session.user.id;
-            
-            // 1. Partner CRUSHED (Gold Alert)
             if (!isMe && payload.new.crushed && !payload.old.crushed) {
-                showNotification(`🔥 PARTNER CRUSHED: "${payload.new.task}"`, 'crushed'); // Custom Type
+                showNotification(`🔥 PARTNER CRUSHED: "${payload.new.task}"`, 'crushed'); 
             }
-            // 2. Partner COMPLETED (Green Alert)
             else if (!isMe && payload.new.completed && !payload.old.completed && !payload.new.crushed) {
                showNotification(`Partner completed: "${payload.new.task}"`, 'success');
             }
-            
-            // 3. Partner Sent Cheer
             if (isMe && payload.new.cheer_note && payload.new.cheer_note !== payload.old.cheer_note) {
                showNotification(`Partner sent a boost: "${payload.new.cheer_note}"`, 'cheer');
             }
@@ -201,71 +203,86 @@ function VisionBoard({ session }) {
     return () => { supabase.removeChannel(channel); };
   }, [session, fetchAllData]);
   
-  async function fetchProfile() { const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single(); if(data) setCurrentProfile(data); }
+  async function fetchProfile() { 
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single(); 
+      if(data) setCurrentProfile(data); 
+      return data;
+  }
 
-  const sendInvite = async () => { if(!partnerEmail) return; const { error } = await supabase.rpc('send_ally_invite', { target_email: partnerEmail }); if (error) { showNotification(error.message, "error"); } else { showNotification("Invite Sent.", "success"); fetchProfile(); } };
-  const acceptInvite = async () => { const { error } = await supabase.rpc('confirm_alliance'); if (!error) { showNotification("Alliance Established.", "success"); confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#60a5fa', '#ffffff'] }); fetchProfile(); fetchAllData(); } };
-  const declineInvite = async () => { const { error } = await supabase.rpc('sever_connection'); if (!error) { showNotification("Connection Severed.", "neutral"); fetchProfile(); } };
+  async function fetchPartnerProfile(partnerId) {
+      const { data } = await supabase.from('profiles').select('*').eq('id', partnerId).single();
+      if(data) setPartnerProfile(data);
+  }
 
-  const clearDailyMissions = async () => { if(!window.confirm("Clear the board for tomorrow? (Crushed wins will be saved in folders)")) return; await supabase.from('missions').delete().eq('user_id', session.user.id).eq('crushed', false); await supabase.from('missions').update({ is_active: false }).eq('user_id', session.user.id).eq('crushed', true); fetchAllData(); };
-  
-  const createGoal = async () => { 
-      if (!newGoalInput.trim()) return; 
-      const { data, error } = await supabase.from('goals').insert([{ 
-          title: newGoalInput, color: newGoalColor, user_id: session.user.id, is_private: isPrivateGoal 
-      }]).select(); 
-      if (!error && data) { 
-          setMyGoals([...myGoals, data[0]]); setNewGoalInput(''); setIsPrivateGoal(false); setShowGoalCreator(false); setSelectedGoalId(data[0].id); 
-      } 
-  };
+  // --- AVATAR UPLOAD ---
+  const handleAvatarUpload = async (event) => {
+      try {
+          setUploading(true);
+          const file = event.target.files[0];
+          if (!file) return;
+          
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${session.user.id}-${Math.random()}.${fileExt}`;
+          const filePath = `${fileName}`;
 
-  const toggleGoalPrivacy = async (goal) => {
-      const newStatus = !goal.is_private;
-      const { error } = await supabase.from('goals').update({ is_private: newStatus }).eq('id', goal.id);
-      if(!error) {
-          setMyGoals(myGoals.map(g => g.id === goal.id ? { ...g, is_private: newStatus } : g));
-          showNotification(newStatus ? "Goal Locked (Private)" : "Goal Unlocked (Shared)", "neutral");
+          const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+
+          const { error: updateError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', session.user.id);
+          if (updateError) throw updateError;
+
+          setCurrentProfile({ ...currentProfile, avatar_url: publicUrl });
+          showNotification("Profile Picture Updated!", "success");
+      } catch (error) {
+          showNotification(error.message, "error");
+      } finally {
+          setUploading(false);
       }
   };
 
+  // --- HISTORY CALENDAR LOGIC ---
+  const getHistoryDays = () => {
+      // Group missions by date
+      const grouped = {};
+      historyData.forEach(m => {
+          const date = new Date(m.created_at).toDateString();
+          if(!grouped[date]) grouped[date] = { total: 0, completed: 0, crushed: 0 };
+          grouped[date].total++;
+          if(m.completed) grouped[date].completed++;
+          if(m.crushed) grouped[date].crushed++;
+      });
+      // Convert to array for last 14 days
+      const days = [];
+      for(let i=13; i>=0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toDateString();
+          const stats = grouped[dateStr] || { total: 0, completed: 0, crushed: 0 };
+          days.push({ date: d, ...stats });
+      }
+      return days;
+  };
+
+  // ... (Invite/Mission/Goal logic remains same as previous block, omitted for brevity, pasting main structural changes below) ...
+  const sendInvite = async () => { if(!partnerEmail) return; const { error } = await supabase.rpc('send_ally_invite', { target_email: partnerEmail }); if (error) { showNotification(error.message, "error"); } else { showNotification("Invite Sent.", "success"); fetchProfile(); } };
+  const acceptInvite = async () => { const { error } = await supabase.rpc('confirm_alliance'); if (!error) { showNotification("Alliance Established.", "success"); confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#60a5fa', '#ffffff'] }); fetchProfile(); fetchAllData(); } };
+  const declineInvite = async () => { const { error } = await supabase.rpc('sever_connection'); if (!error) { showNotification("Connection Severed.", "neutral"); fetchProfile(); } };
+  const clearDailyMissions = async () => { if(!window.confirm("Clear the board for tomorrow? (Crushed wins will be saved in folders)")) return; await supabase.from('missions').delete().eq('user_id', session.user.id).eq('crushed', false); await supabase.from('missions').update({ is_active: false }).eq('user_id', session.user.id).eq('crushed', true); fetchAllData(); };
+  const createGoal = async () => { if (!newGoalInput.trim()) return; const { data, error } = await supabase.from('goals').insert([{ title: newGoalInput, color: newGoalColor, user_id: session.user.id, is_private: isPrivateGoal }]).select(); if (!error && data) { setMyGoals([...myGoals, data[0]]); setNewGoalInput(''); setIsPrivateGoal(false); setShowGoalCreator(false); setSelectedGoalId(data[0].id); } };
+  const toggleGoalPrivacy = async (goal) => { const newStatus = !goal.is_private; const { error } = await supabase.from('goals').update({ is_private: newStatus }).eq('id', goal.id); if(!error) { setMyGoals(myGoals.map(g => g.id === goal.id ? { ...g, is_private: newStatus } : g)); showNotification(newStatus ? "Goal Locked (Private)" : "Goal Unlocked (Shared)", "neutral"); } };
   const initiateDeleteGoal = (id, title, e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, type: 'goal', id, title: `Delete "${title}"?` }); };
   const initiateDeleteThought = (id) => { setDeleteModal({ isOpen: true, type: 'thought', id, title: 'Delete this vision?' }); };
   const executeDelete = async () => { const { type, id } = deleteModal; if (type === 'goal') { await supabase.from('goals').delete().eq('id', id); setMyGoals(myGoals.filter(g => g.id !== id)); if(selectedGoalId === id) setSelectedGoalId(null); } else if (type === 'thought') { await supabase.from('thoughts').delete().eq('id', id); const newThoughts = myThoughts.filter(t => t.id !== id); setMyThoughts(newThoughts); calculateStreak(newThoughts); } setDeleteModal({ isOpen: false, type: null, id: null, title: '' }); };
-  
-  const addMission = async (taskText = missionInput, goalId = selectedGoalId) => { 
-      if (!taskText.trim()) return; 
-      const { data, error } = await supabase.from('missions').insert([{ 
-          task: taskText, user_id: session.user.id, completed: false, crushed: false, is_active: true, goal_id: goalId, is_private: isPrivateMission 
-      }]).select(); 
-      if (!error && data) { 
-          setMyMissions([...myMissions, data[0]]); setMissionInput(''); setIsPrivateMission(false); 
-      } 
-  };
-
+  const addMission = async (taskText = missionInput, goalId = selectedGoalId) => { if (!taskText.trim()) return; const { data, error } = await supabase.from('missions').insert([{ task: taskText, user_id: session.user.id, completed: false, crushed: false, is_active: true, goal_id: goalId, is_private: isPrivateMission }]).select(); if (!error && data) { setMyMissions([...myMissions, data[0]]); setMissionInput(''); setIsPrivateMission(false); } };
   const triggerGrandFinale = () => { if (!fireworksRef.current) return; const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); };
   const handleLockIn = () => { if(myMissions.filter(m => !m.completed && !m.crushed).length === 0) { if(!window.confirm("Mission Log is empty. Deploy anyway?")) return; } setProtocolModal(true); };
   const executeProtocol = () => { setProtocolModal(false); confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] }); setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000); };
   const toggleCompleted = async (mission) => { const newCompleted = !mission.completed; const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCompleted && !mission.completed) { const goal = myGoals.find(g => g.id === mission.goal_id); const color = goal ? goal.color : '#cbd5e1'; if (allDone) { triggerGrandFinale(); } else { confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); } };
   const toggleCrushed = async (mission) => { const newCrushed = !mission.crushed; const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCrushed) { if (allDone) { triggerGrandFinale(); } else { confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]); else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id)); } };
-  
-  // -- VICTORY NOTE LOGIC --
-  const handleDraftChange = (id, text) => {
-      setTempVictoryNotes({ ...tempVictoryNotes, [id]: text });
-  };
-
-  const handleNoteSave = async (id) => { 
-      const note = tempVictoryNotes[id];
-      if (!note || !note.trim()) return;
-      
-      const { error } = await supabase.from('missions').update({ victory_note: note }).eq('id', id);
-      if (!error) {
-          // Update local state to reflect the saved note (hiding the input)
-          setMyMissions(myMissions.map(m => m.id === id ? { ...m, victory_note: note } : m));
-          setCrushedHistory(crushedHistory.map(m => m.id === id ? { ...m, victory_note: note } : m)); 
-          showNotification("Victory Locked In.", "success");
-      }
-  };
-
+  const handleDraftChange = (id, text) => { setTempVictoryNotes({ ...tempVictoryNotes, [id]: text }); };
+  const handleNoteSave = async (id) => { const note = tempVictoryNotes[id]; if (!note || !note.trim()) return; const { error } = await supabase.from('missions').update({ victory_note: note }).eq('id', id); if (!error) { setMyMissions(myMissions.map(m => m.id === id ? { ...m, victory_note: note } : m)); setCrushedHistory(crushedHistory.map(m => m.id === id ? { ...m, victory_note: note } : m)); showNotification("Victory Locked In.", "success"); } };
   const deleteMission = async (id) => { const { error } = await supabase.from('missions').delete().eq('id', id); if (!error) setMyMissions(myMissions.filter(m => m.id !== id)); };
   const openCheerModal = (id) => { setCheerInput(''); setCheerModal({ isOpen: true, missionId: id }); };
   const submitCheer = async () => { if(!cheerInput.trim() || !cheerModal.missionId) return; const { error } = await supabase.from('missions').update({ cheer_note: cheerInput }).eq('id', cheerModal.missionId); if(!error) { setPartnerMissions(partnerMissions.map(m => m.id === cheerModal.missionId ? { ...m, cheer_note: cheerInput } : m)); showNotification("Cheer sent!", "success"); setCheerModal({ isOpen: false, missionId: null }); } };
@@ -295,21 +312,52 @@ function VisionBoard({ session }) {
        <style>{globalStyles}</style>
        <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
        {notification && ( <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
+       
+       {/* --- HISTORY CALENDAR MODAL --- */}
+       {historyModal && (
+           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+               <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '90%', maxWidth: '340px', border: '1px solid #334155' }}>
+                   <h3 style={{ color: 'white', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={20} /> History Log</h3>
+                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginTop: '20px' }}>
+                       {['S','M','T','W','T','F','S'].map(d => <span key={d} style={{ color: '#94a3b8', fontSize: '10px', textAlign: 'center' }}>{d}</span>)}
+                       {getHistoryDays().map((d, i) => (
+                           <div key={i} style={{ height: '30px', borderRadius: '8px', background: d.total === 0 ? '#334155' : (d.completed + d.crushed === d.total ? '#10b981' : (d.completed + d.crushed > 0 ? '#f59e0b' : '#ef4444')), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', color: 'white' }}>
+                               {d.date.getDate()}
+                           </div>
+                       ))}
+                   </div>
+                   <button onClick={() => setHistoryModal(false)} style={{ width: '100%', padding: '12px', marginTop: '20px', borderRadius: '16px', background: 'transparent', border: '1px solid #475569', color: '#cbd5e1' }}>Close</button>
+               </div>
+           </div>
+       )}
+
+        {/* ... (Previous Modals for Delete/Cheer/Protocol/Partner - same as before) ... */}
         {deleteModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '85%', maxWidth: '300px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}> <h3 style={{ margin: '0 0 16px 0', color: 'white', fontSize: '18px' }}>{deleteModal.title}</h3> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setDeleteModal({ isOpen: false, type: null, id: null, title: '' })} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={executeDelete} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button> </div> </div> </div> )}
         {protocolModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #a855f7', boxShadow: '0 0 40px rgba(168, 85, 247, 0.3)' }}> <Fingerprint size={48} color="#c084fc" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Contract With Tomorrow</h3> <p style={{ margin: '0 0 25px 0', color: '#cbd5e1', fontSize: '15px', lineHeight: '1.5' }}> "Does this plan demand your absolute best, or are you negotiating with weakness? Once you execute, there are no edits. Only results." </p> <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}> <button onClick={executeProtocol} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}> EXECUTE PROTOCOL </button> <button onClick={() => setProtocolModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> ABORT </button> </div> </div> </div> )}
         {cheerModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #16a34a', boxShadow: '0 0 40px rgba(22, 163, 74, 0.3)' }}> <MessageCircle size={48} color="#22c55e" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>Send a Boost</h3> <input type="text" placeholder="Keep pushing..." value={cheerInput} onChange={(e) => setCheerInput(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', color: 'white', marginBottom: '20px', outline: 'none', textAlign: 'center' }} /> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setCheerModal({ isOpen: false, missionId: null })} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={submitCheer} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>Send <Send size={14}/></button> </div> </div> </div> )}
         {partnerModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}> <Users size={48} color={currentProfile?.status === 'active' ? '#10b981' : '#60a5fa'} style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Ally Protocol</h3> {currentProfile?.status === 'active' && ( <> <p style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: ACTIVE</p> <div style={{ background: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}> <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>LINKED PARTNER:</p> <p style={{ color: 'white', fontWeight: 'bold', margin: '5px 0 0 0' }}>{currentProfile.partner_email}</p> </div> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> SEVER CONNECTION </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id === session.user.id && ( <> <p style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: PENDING ACCEPTANCE</p> <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>Invitation sent to <b>{currentProfile.partner_email}</b>. Waiting for them to confirm.</p> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: '#334155', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}> CANCEL INVITE </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <> <p style={{ color: '#f97316', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>INCOMING REQUEST</p> <p style={{ color: 'white', fontSize: '16px', marginBottom: '20px' }}><b>{currentProfile.partner_email}</b> wants to link protocols.</p> <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}> <button onClick={acceptInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><Check size={20} /></button> <button onClick={declineInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><XCircle size={20} /></button> </div> </> )} {!currentProfile?.partner_id && ( <> <p style={{ margin: '0 0 20px 0', color: '#cbd5e1', fontSize: '14px' }}> "Iron sharpens iron. Link with one partner to see their visions." </p> <input type="email" placeholder="Partner Email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#334155', border: '1px solid #475569', color: 'white', marginBottom: '20px', outline: 'none' }} /> <button onClick={sendInvite} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}> <LinkIcon size={16} /> SEND INVITE </button> </> )} <button onClick={() => setPartnerModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> CLOSE </button> </div> </div> )}
 
        <div style={{ position: 'absolute', top: '60px', right: '16px', display: 'flex', gap: '8px', zIndex: 10 }}>
-          {/* --- TOP RIGHT BUTTONS --- */}
+          
+          {/* UPLOAD AVATAR BUTTON (Hidden input, triggered by clicking the user icon) */}
+          <input type="file" ref={avatarInputRef} onChange={handleAvatarUpload} accept="image/*" style={{ display: 'none' }} />
+          
           {(mode === 'morning' || currentProfile?.status === 'pending') && (
               <div style={{ position: 'relative' }}> 
-                  <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> <Users size={16} color={mode === 'night' ? 'white' : 'black'} /> </button> 
+                  {/* CLICK TO UPLOAD AVATAR (Night Mode) or VIEW PARTNER (Morning Mode - logic separated below) */}
+                  <button onClick={() => mode === 'night' ? avatarInputRef.current.click() : setPartnerModal(true)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}> 
+                      {currentProfile?.avatar_url ? (
+                          <img src={currentProfile.avatar_url} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${mode === 'night' ? '#c084fc' : '#334155'}` }} />
+                      ) : (
+                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <Users size={16} color={mode === 'night' ? 'white' : 'black'} />
+                          </div>
+                      )}
+                  </button> 
                   {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid #1f1f22' }}></div> )} 
               </div>
           )}
           
-          {/* LOGIC CHANGE: Only show "Edit" button if in Morning. Hide "Morning" button in Night. */}
           {mode === 'morning' && ( 
               <button onClick={() => setMode('night')} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: '#64748b' }}> <Edit3 size={16} /> </button> 
           )}
@@ -319,13 +367,35 @@ function VisionBoard({ session }) {
 
       <div style={{ maxWidth: '400px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ marginTop: '100px', textAlign: mode === 'night' ? 'center' : 'left' }}>
-          {mode === 'night' ? ( <> <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.9, marginBottom: '15px' }}><Moon size={56} color="#c084fc" style={{ filter: 'drop-shadow(0 0 10px rgba(192, 132, 252, 0.5))' }} /></div> <h1 style={{ fontSize: '36px', fontWeight: 'bold', background: 'linear-gradient(to right, #e9d5ff, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>Relay Vision.</h1> <p style={{ margin: '8px 0 0 0', color: '#a855f7', opacity: 0.8, letterSpacing: '1px' }}>PASS THE BATON.</p> </> ) : ( <div style={{ marginBottom: '10px' }}> <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}> <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Sun size={32} color="#f59e0b" /><h1 style={{ fontSize: '42px', fontWeight: '800', lineHeight: '1', margin: 0, color: '#1e293b' }}>Relay Vision.</h1></div> <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff7ed', padding: '6px 12px', borderRadius: '20px', border: '1px solid #ffedd5' }}><Flame size={20} fill={streak > 0 ? "#f97316" : "none"} color="#f97316" /><span style={{ fontSize: '16px', fontWeight: 'bold', color: '#9a3412' }}>{streak} Day{streak !== 1 && 's'}</span></div> </div> </div> )}
+          {mode === 'night' ? ( <> 
+            <div onClick={() => avatarInputRef.current.click()} style={{ display: 'flex', justifyContent: 'center', opacity: 0.9, marginBottom: '15px', cursor: 'pointer' }}>
+                {currentProfile?.avatar_url ? (
+                    <img src={currentProfile.avatar_url} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #c084fc' }} />
+                ) : (
+                    <Moon size={56} color="#c084fc" style={{ filter: 'drop-shadow(0 0 10px rgba(192, 132, 252, 0.5))' }} />
+                )}
+            </div> 
+            <h1 style={{ fontSize: '36px', fontWeight: 'bold', background: 'linear-gradient(to right, #e9d5ff, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: 0 }}>Relay Vision.</h1> 
+            <p style={{ margin: '8px 0 0 0', color: '#a855f7', opacity: 0.8, letterSpacing: '1px' }}>PASS THE BATON.</p> 
+          </> ) : ( <div style={{ marginBottom: '10px' }}> 
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '10px' }}> 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Sun size={32} color="#f59e0b" /><h1 style={{ fontSize: '42px', fontWeight: '800', lineHeight: '1', margin: 0, color: '#1e293b' }}>Relay Vision.</h1></div> 
+                
+                {/* --- HISTORY TRIGGER BUTTON --- */}
+                <div onClick={() => setHistoryModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff7ed', padding: '6px 12px', borderRadius: '20px', border: '1px solid #ffedd5', cursor: 'pointer' }}>
+                    <Flame size={20} fill={streak > 0 ? "#f97316" : "none"} color="#f97316" />
+                    <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#9a3412' }}>{streak} Day{streak !== 1 && 's'}</span>
+                </div> 
+            </div> 
+          </div> )}
+          
+          {/* ... (Morning Mode Nav Buttons - Same as before) ... */}
           {mode === 'morning' && ( <div style={{ display: 'flex', gap: '5px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', width: '100%', marginTop: '10px', marginBottom: '10px' }}> <button onClick={() => { setActiveTab('mission'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'mission' ? 'white' : 'transparent', boxShadow: activeTab === 'mission' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'mission' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><ListTodo size={16} /> Mission</button> <button onClick={() => setActiveTab('vision')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'vision' ? 'white' : 'transparent', boxShadow: activeTab === 'vision' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'vision' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Eye size={16} /> Vision</button> <button onClick={() => { setActiveTab('ally'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'ally' ? 'white' : 'transparent', boxShadow: activeTab === 'ally' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'ally' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Users size={16} /> Ally</button> </div> )}
         </div>
 
+        {/* ... (Night Mode Goals / Input - Same as before) ... */}
         {mode === 'night' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-             {/* ... (Night Mode Logic - Same as before) ... */}
              {debugLog && <div style={{ background: debugLog.includes('Error') ? '#7f1d1d' : '#064e3b', color: debugLog.includes('Error') ? '#fecaca' : '#a7f3d0', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${debugLog.includes('Error') ? '#ef4444' : '#10b981'}` }}>{debugLog}</div>}
              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}> 
                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}> 
@@ -400,7 +470,7 @@ function VisionBoard({ session }) {
           </div>
         )}
 
-        {/* ... (Morning Mode Renders Same as Before) ... */}
+        {/* ... (Morning Mode Logic - Same as before) ... */}
         {mode === 'morning' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '40px' }}>
             
@@ -441,8 +511,16 @@ function VisionBoard({ session }) {
                         )}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {partnerMissions.map(m => (
-                                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', borderRadius: '12px', background: m.completed ? '#f0fdf4' : '#f8fafc', borderLeft: `4px solid ${getGoalColor(m.goal_id)}`, border: '1px solid #e2e8f0', borderLeftWidth: '4px', opacity: m.completed && !m.crushed ? 0.7 : 1 }}>
+                                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', borderRadius: '12px', background: m.crushed ? '#fff7ed' : (m.completed ? '#f0fdf4' : '#f8fafc'), borderLeft: `4px solid ${getGoalColor(m.goal_id)}`, border: m.crushed ? '1px solid #fdba74' : '1px solid #e2e8f0', borderLeftWidth: '4px', opacity: m.completed && !m.crushed ? 0.7 : 1 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        {/* --- PARTNER AVATAR ON CARD --- */}
+                                        <div style={{ marginRight: '8px' }}>
+                                            {partnerProfile?.avatar_url ? (
+                                                <img src={partnerProfile.avatar_url} style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover' }} />
+                                            ) : (
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0' }}></div>
+                                            )}
+                                        </div>
                                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                             <span style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', color: getGoalColor(m.goal_id), letterSpacing: '0.5px' }}>{getGoalTitle(m.goal_id)}</span>
                                             <span style={{ color: m.completed ? '#16a34a' : '#334155', fontWeight: '600', fontSize: '16px', textDecoration: m.completed && !m.crushed ? 'line-through' : 'none' }}>{m.task}</span>
