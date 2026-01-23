@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
@@ -95,6 +95,9 @@ function VisionBoard({ session }) {
   const [showGuide, setShowGuide] = useState(false);
   const [historyData, setHistoryData] = useState([]);
   
+  // --- NEW STATE: ZONE MODAL (THE SPOKE) ---
+  const [activeZone, setActiveZone] = useState(null); // If set, shows the drill-down modal
+
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
@@ -287,6 +290,13 @@ function VisionBoard({ session }) {
   
   const handleReorder = (newOrder) => { setMyMissions([...newOrder, ...completedMissions]); };
 
+  // --- HELPER: GET ZONE STATS FOR HUB ---
+  const getZoneStats = (goalId) => {
+      // Logic: A zone is "lit" if it has active missions for tomorrow
+      const missionCount = myMissions.filter(m => m.goal_id === goalId && !m.completed && !m.crushed).length;
+      return { count: missionCount, lit: missionCount > 0 };
+  };
+
   return (
     <div style={mode === 'night' ? nightStyle : morningStyle}>
        <style>{globalStyles}</style>
@@ -330,25 +340,21 @@ function VisionBoard({ session }) {
             {mode === 'night' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '25px' }}>
                 <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>1. Capture Vision</h4>
+                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>1. The War Room</h4>
                   <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Upload images or video ("Fuel") to remind you <i>why</i> you grind. Use the <Lock size={10}/> icon to keep visions Private, or unlock to share with your Ally.
+                    This is your strategic hub. Tap a <b>Zone Tile</b> (like "Fitness" or "General") to open its planning module.
                   </p>
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>2. Set The Mission</h4>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Pre-load tomorrow's targets. Be specific.
+                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>2. Light Up The Board</h4>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
+                    Zones are dim by default. Add a mission to a zone to "light it up." Your goal is to light up all critical zones before sleeping.
                   </p>
-                  <div style={{ background: '#0f172a', padding: '10px', borderRadius: '8px', border: '1px solid #334155', fontSize: '12px', color: '#a855f7', fontStyle: 'italic' }}>
-                    <ShieldCheck size={12} style={{ marginRight: '5px', verticalAlign: 'middle' }}/> 
-                    "Initiate Protocol" locks the list. No edits allowed after that.
-                  </div>
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>3. Target Zones</h4>
+                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>3. Initiate Protocol</h4>
                   <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Use the <Plus size={10} style={{ background:'#333', borderRadius:'50%', padding:'1px' }} /> button to create categories (Business, Fitness, etc.). Organize your war room.
+                    Once your zones are ready, hit the big purple button at the bottom. This locks your missions for tomorrow.
                   </p>
                 </div>
               </div>
@@ -479,113 +485,168 @@ function VisionBoard({ session }) {
           {mode === 'morning' && ( <div style={{ display: 'flex', gap: '5px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', width: '100%', marginTop: '10px', marginBottom: '10px' }}> <button onClick={() => { setActiveTab('mission'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'mission' ? 'white' : 'transparent', boxShadow: activeTab === 'mission' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'mission' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><ListTodo size={16} /> Mission</button> <button onClick={() => setActiveTab('vision')} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'vision' ? 'white' : 'transparent', boxShadow: activeTab === 'vision' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'vision' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Eye size={16} /> Vision</button> <button onClick={() => { setActiveTab('ally'); setViewingGoal(null); }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: activeTab === 'ally' ? 'white' : 'transparent', boxShadow: activeTab === 'ally' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', color: activeTab === 'ally' ? '#0f172a' : '#64748b', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><Users size={16} /> Ally</button> </div> )}
         </div>
 
-        {/* --- MODULAR NIGHT MODE LAYOUT --- */}
+        {/* --- MODULAR NIGHT MODE LAYOUT (THE HUB) --- */}
         {mode === 'night' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', paddingBottom: '40px' }}>
              {debugLog && <div style={{ background: debugLog.includes('Error') ? '#7f1d1d' : '#064e3b', color: debugLog.includes('Error') ? '#fecaca' : '#a7f3d0', padding: '10px', borderRadius: '8px', fontSize: '12px', textAlign: 'center', border: `1px solid ${debugLog.includes('Error') ? '#ef4444' : '#10b981'}` }}>{debugLog}</div>}
              
-             {/* MODULE 1: ZONE SELECTOR (Horizontal Scroll) */}
-             <div style={{ width: '100%', overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: '10px', scrollbarWidth: 'none' }}>
-                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}> 
-                     <button onClick={() => setSelectedGoalId(null)} style={{ padding: '8px 16px', borderRadius: '24px', border: selectedGoalId === null ? '1px solid white' : '1px solid #333', background: selectedGoalId === null ? '#333' : 'transparent', color: 'white', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0 }}>General</button> 
-                     {myGoals.map(g => ( 
-                         <div key={g.id} onClick={() => setSelectedGoalId(g.id)} style={{ padding: '8px 12px 8px 16px', borderRadius: '24px', border: selectedGoalId === g.id ? '1px solid white' : `1px solid ${g.color}44`, background: selectedGoalId === g.id ? g.color : `${g.color}22`, color: selectedGoalId === g.id ? 'white' : g.color, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s', flexShrink: 0 }}> 
-                             {g.title} {g.is_private && <Lock size={10} />}
-                             <div onClick={(e) => initiateDeleteGoal(g.id, g.title, e)} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}> <X size={12} color="white" /> </div> 
-                         </div> 
-                     ))} 
-                     <button onClick={() => setShowGoalCreator(!showGoalCreator)} style={{ width: myGoals.length === 0 ? 'auto' : '32px', height: '32px', padding: myGoals.length === 0 ? '0 12px' : '0', borderRadius: myGoals.length === 0 ? '16px' : '50%', background: '#222', border: '1px solid #444', color: myGoals.length === 0 ? 'white' : '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: myGoals.length === 0 ? '12px' : 'inherit', fontWeight: 'bold', flexShrink: 0 }}>
-                        {myGoals.length === 0 ? '+ CREATE ZONE' : <Plus size={16} />}
-                     </button> 
-                 </div> 
-                 {showGoalCreator && ( 
-                     <div style={{ background: '#111', padding: '15px', borderRadius: '16px', border: '1px solid #333', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}> 
-                         <h4 style={{ margin: 0, fontSize: '12px', color: '#666' }}>NEW GOAL</h4> 
-                         <input type="text" value={newGoalInput} onChange={(e) => setNewGoalInput(e.target.value)} placeholder="Goal Title" style={{ background: '#222', border: '1px solid #444', color: 'white', padding: '8px', borderRadius: '8px', outline: 'none' }} /> 
-                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                             <div style={{ display: 'flex', gap: '8px' }}> {goalColors.map(c => <button key={c} onClick={() => setNewGoalColor(c)} style={{ width: '20px', height: '20px', borderRadius: '50%', background: c, border: newGoalColor === c ? '2px solid white' : 'none', cursor: 'pointer' }} />)} </div>
-                             <button onClick={() => setIsPrivateGoal(!isPrivateGoal)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '1px solid #444', color: isPrivateGoal ? '#ef4444' : '#64748b', padding: '4px 8px', borderRadius: '12px', cursor: 'pointer', fontSize: '12px' }}>
-                                 {isPrivateGoal ? <Lock size={12} /> : <Unlock size={12} />} {isPrivateGoal ? "Private" : "Public"}
-                             </button>
+             {/* THE HUB GRID */}
+             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                 
+                 {/* GENERAL TILE */}
+                 <div onClick={() => { setSelectedGoalId(null); setActiveZone({id: null, title: 'General', color: '#333'}); }} style={{ 
+                     background: '#1a1a1a', 
+                     border: getZoneStats(null).lit ? '2px solid #fff' : '1px solid #333',
+                     borderRadius: '24px', 
+                     padding: '20px', 
+                     minHeight: '140px',
+                     display: 'flex',
+                     flexDirection: 'column',
+                     justifyContent: 'space-between',
+                     cursor: 'pointer',
+                     boxShadow: getZoneStats(null).lit ? '0 0 15px rgba(255,255,255,0.1)' : 'none'
+                 }}>
+                     <Target size={24} color={getZoneStats(null).lit ? 'white' : '#666'} />
+                     <div>
+                         <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: 'white' }}>GENERAL</h3>
+                         <span style={{ fontSize: '11px', color: getZoneStats(null).lit ? '#a855f7' : '#666', fontWeight: 'bold' }}>
+                             {getZoneStats(null).count} MISSIONS
+                         </span>
+                     </div>
+                 </div>
+
+                 {/* USER ZONES */}
+                 {myGoals.map(g => (
+                     <div key={g.id} onClick={() => { setSelectedGoalId(g.id); setActiveZone(g); }} style={{ 
+                         background: getZoneStats(g.id).lit ? g.color : '#1a1a1a', 
+                         border: getZoneStats(g.id).lit ? `2px solid ${g.color}` : `1px solid ${g.color}44`,
+                         borderRadius: '24px', 
+                         padding: '20px', 
+                         minHeight: '140px',
+                         display: 'flex',
+                         flexDirection: 'column',
+                         justifyContent: 'space-between',
+                         cursor: 'pointer',
+                         boxShadow: getZoneStats(g.id).lit ? `0 0 20px ${g.color}66` : 'none',
+                         transition: 'all 0.2s'
+                     }}>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                             <Target size={24} color={getZoneStats(g.id).lit ? 'white' : g.color} />
+                             {g.is_private && <Lock size={14} color={getZoneStats(g.id).lit ? 'white' : '#666'} />}
                          </div>
-                         <button onClick={createGoal} style={{ background: '#fff', color: 'black', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>Create Goal</button> 
-                     </div> 
-                 )} 
-             </div>
-             
-             {/* MODULE 2: THE SIGNAL (VISION TERMINAL) */}
-             <div style={{ background: '#0a0a0a', borderRadius: '24px', border: '1px solid #262626', overflow: 'hidden', padding: '5px' }}>
-                 <div style={{ padding: '10px 15px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #262626', marginBottom: '5px' }}>
-                    <Terminal size={14} color="#666" />
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', letterSpacing: '1px', textTransform: 'uppercase' }}>Signal // Capture</span>
+                         <div>
+                             <h3 style={{ margin: '0 0 5px 0', fontSize: '16px', color: getZoneStats(g.id).lit ? 'white' : g.color }}>{g.title.toUpperCase()}</h3>
+                             <span style={{ fontSize: '11px', color: getZoneStats(g.id).lit ? 'rgba(255,255,255,0.8)' : '#666', fontWeight: 'bold' }}>
+                                 {getZoneStats(g.id).count} MISSIONS
+                             </span>
+                         </div>
+                     </div>
+                 ))}
+
+                 {/* CREATE ZONE TILE */}
+                 <div onClick={() => setShowGoalCreator(true)} style={{ 
+                     background: 'transparent', 
+                     border: '2px dashed #444',
+                     borderRadius: '24px', 
+                     padding: '20px', 
+                     minHeight: '140px',
+                     display: 'flex',
+                     flexDirection: 'column',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     cursor: 'pointer',
+                     color: '#666'
+                 }}>
+                     <Plus size={32} />
+                     <span style={{ marginTop: '10px', fontSize: '12px', fontWeight: 'bold' }}>CREATE ZONE</span>
                  </div>
-                 
-                 <div style={{ position: 'relative', width: '100%', minHeight: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}> 
-                    {(previewUrl || isRecordingAudio) ? ( 
-                        <div style={{ width: '100%', borderRadius: '16px', overflow: 'hidden', position: 'relative' }}>
-                            {mediaType === 'image' && <img src={previewUrl} style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />} 
-                            {mediaType === 'video' && <video src={previewUrl} controls playsInline style={{ width: '100%', maxHeight: '300px' }} />} 
-                            {isRecordingAudio && <div style={{ color: '#ef4444', fontWeight: 'bold', animation: 'pulse 1s infinite', textAlign: 'center', padding: '20px' }}>Recording Audio... (Tap Stop)</div>} 
-                            {mediaType === 'audio' && !isRecordingAudio && <audio src={previewUrl} controls style={{ width: '90%' }} />} 
-                            {!isRecordingAudio && <button onClick={clearMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', zIndex: 10 }}>X</button>} 
-                        </div> 
-                    ) : (
-                        <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder={isQuoteMode ? "Enter the quote..." : `Identify target for ${selectedGoalId ? getGoalTitle(selectedGoalId).toUpperCase() : 'GENERAL'}...`} style={{ width: '100%', height: '120px', background: 'transparent', border: 'none', color: isQuoteMode ? '#f59e0b' : 'white', fontStyle: isQuoteMode ? 'italic' : 'normal', outline: 'none', padding: '16px', fontSize: '18px', resize: 'none' }} disabled={uploading} /> 
-                    )}
-                 </div>
-                 
-                 {/* MEDIA BAR ATTACHED TO BOTTOM */}
-                 <div style={{ background: '#141414', borderRadius: '20px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                         <button onClick={() => fileInputRef.current.click()} disabled={uploading || isRecordingAudio} style={{ flex: 1, height: '44px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#c084fc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Camera size={18} /></button> 
-                         <button onClick={() => videoInputRef.current.click()} disabled={uploading || isRecordingAudio} style={{ flex: 1, height: '44px', background: '#222', border: '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={18} /></button> 
-                         <button onClick={isRecordingAudio ? stopAudioRecording : startAudioRecording} disabled={uploading} style={{ flex: 1, height: '44px', background: isRecordingAudio ? '#ef4444' : '#222', border: isRecordingAudio ? 'none' : '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: isRecordingAudio ? 'white' : '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isRecordingAudio ? <Square size={18} fill="currentColor" /> : <Mic size={18} />}</button> 
-                         <button onClick={() => { const newMode = !isQuoteMode; setIsQuoteMode(newMode); setMediaFile(null); setAudioBlob(null); setMediaType('text'); setPreviewUrl(null); }} disabled={uploading} style={{ flex: 1, height: '44px', background: isQuoteMode ? '#f59e0b' : '#222', border: isQuoteMode ? 'none' : '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: isQuoteMode ? 'black' : '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><QuoteIcon size={18} /></button>
-                         <button onClick={() => setIsPrivateVision(!isPrivateVision)} style={{ width: '44px', height: '44px', background: '#222', border: isPrivateVision ? '1px solid #ef4444' : '1px solid #333', borderRadius: '12px', cursor: 'pointer', color: isPrivateVision ? '#ef4444' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                             {isPrivateVision ? <Lock size={18} /> : <Unlock size={18} />}
-                         </button>
-                     </div> 
-                     <button onClick={handleCapture} disabled={uploading || isRecordingAudio} style={{ width: '100%', padding: '14px', backgroundColor: uploading ? '#333' : '#c084fc', color: 'white', fontWeight: 'bold', border: 'none', borderRadius: '16px', cursor: 'pointer', fontSize: '14px' }}>{uploading ? 'SYNCING...' : 'CAPTURE SIGNAL'}</button> 
-                 </div>
-                 <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'image')} style={{ display: 'none' }} /> <input type="file" accept="video/*" capture="environment" ref={videoInputRef} onChange={(e) => handleFileSelect(e, 'video')} style={{ display: 'none' }} /> 
              </div>
 
-             {/* MODULE 3: THE MANIFEST (MISSION CLIPBOARD) */}
-             <div style={{ background: '#0a0a0a', borderRadius: '24px', border: '1px solid #262626', padding: '15px' }}>
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #262626' }}> 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <ClipboardList size={14} color="#666" />
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', letterSpacing: '1px', textTransform: 'uppercase' }}>Manifest // Tomorrow</span>
-                    </div>
-                    <button onClick={clearDailyMissions} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: '1px solid #444', color: '#888', borderRadius: '12px', padding: '4px 8px', fontSize: '10px', cursor: 'pointer' }}> <Eraser size={10} /> CLEAR </button> 
-                 </div> 
-                 
-                 {/* RECENT MISSIONS SCROLL */}
-                 {recentMissions.length > 0 && ( <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '5px', scrollbarWidth: 'none' }}> {recentMissions.map(m => ( <button key={'recent-'+m.id} onClick={() => addMission(m.task, m.goal_id)} style={{ whiteSpace: 'nowrap', background: '#1a1a1a', border: '1px solid #333', color: '#888', padding: '6px 12px', borderRadius: '20px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}> <RotateCcw size={10} /> {m.task} </button> ))} </div> )} 
-                 
-                 <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}> 
-                     <input type="text" value={missionInput} onChange={(e) => setMissionInput(e.target.value)} placeholder="Add mission objective" onKeyDown={(e) => e.key === 'Enter' && addMission()} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: '#111', border: '1px solid #333', borderLeft: `4px solid ${getGoalColor(selectedGoalId)}`, color: 'white', outline: 'none' }} /> 
-                     <button onClick={() => setIsPrivateMission(!isPrivateMission)} style={{ background: '#222', border: isPrivateMission ? '1px solid #ef4444' : '1px solid #333', borderRadius: '12px', width: '40px', color: isPrivateMission ? '#ef4444' : '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                         {isPrivateMission ? <Lock size={16} /> : <Unlock size={16} />}
-                     </button>
-                     <button onClick={() => addMission()} style={{ background: '#333', border: 'none', borderRadius: '12px', width: '40px', color: 'white', cursor: 'pointer' }}><Plus size={20} /></button> 
+             {/* GOAL CREATOR MODAL (Existing logic, just triggered by tile) */}
+             {showGoalCreator && ( 
+                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                     <div style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #333', width: '85%', maxWidth: '320px' }}> 
+                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                             <h4 style={{ margin: 0, fontSize: '14px', color: '#fff' }}>NEW ZONE</h4> 
+                             <button onClick={() => setShowGoalCreator(false)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}><X size={18} /></button>
+                         </div>
+                         <input type="text" value={newGoalInput} onChange={(e) => setNewGoalInput(e.target.value)} placeholder="Zone Name" style={{ width: '100%', background: '#222', border: '1px solid #444', color: 'white', padding: '12px', borderRadius: '12px', outline: 'none', marginBottom: '15px' }} /> 
+                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                             <div style={{ display: 'flex', gap: '8px' }}> {goalColors.slice(0, 5).map(c => <button key={c} onClick={() => setNewGoalColor(c)} style={{ width: '24px', height: '24px', borderRadius: '50%', background: c, border: newGoalColor === c ? '2px solid white' : 'none', cursor: 'pointer' }} />)} </div>
+                             <button onClick={() => setIsPrivateGoal(!isPrivateGoal)} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '1px solid #444', color: isPrivateGoal ? '#ef4444' : '#64748b', padding: '6px 10px', borderRadius: '12px', cursor: 'pointer', fontSize: '12px' }}>
+                                 {isPrivateGoal ? <Lock size={12} /> : <Unlock size={12} />}
+                             </button>
+                         </div>
+                         <button onClick={createGoal} style={{ width: '100%', background: 'white', color: 'black', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Create Zone</button> 
+                     </div> 
                  </div>
-                 
-                 <Reorder.Group axis="y" values={activeMissions} onReorder={handleReorder} style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: 0, listStyle: 'none' }}> 
-                     {activeMissions.map(m => ( 
-                         <Reorder.Item key={m.id} value={m} style={{ background: '#1a1a1a', padding: '12px 16px', borderRadius: '12px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '12px' }}> 
-                             <div style={{ color: '#444', cursor: 'grab', display: 'flex', alignItems: 'center' }}><GripVertical size={16} /></div> 
-                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getGoalColor(m.goal_id) }}></div> 
-                             <span style={{ fontSize: '14px', color: '#ddd', flex: 1 }}>{m.task}</span> 
-                             {m.is_private && <Lock size={12} color="#444" />}
-                             <button onClick={() => deleteMission(m.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}><X size={14} /></button> 
-                         </Reorder.Item> 
-                     ))} 
-                 </Reorder.Group> 
-                 {activeMissions.length === 0 && ( <div style={{ padding: '20px', textAlign: 'center', color: '#444', border: '1px dashed #333', borderRadius: '12px', fontSize: '14px' }}> No missions assigned yet. </div> )} 
-             </div>
+             )} 
              
-             {/* MODULE 4: LAUNCH */}
+             {/* THE SPOKE: ZONE DRILL-DOWN MODAL */}
+             {activeZone && (
+                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: '#000', zIndex: 11000, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.2s' }}>
+                     {/* MODAL HEADER */}
+                     <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${activeZone.color}44` }}>
+                         <h2 style={{ margin: 0, fontSize: '24px', color: activeZone.color, textTransform: 'uppercase', letterSpacing: '1px' }}>{activeZone.title}</h2>
+                         <button onClick={() => setActiveZone(null)} style={{ padding: '8px 16px', background: activeZone.color, color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>ZONE READY</button>
+                     </div>
+
+                     {/* MODAL CONTENT: SCROLLABLE */}
+                     <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                         
+                         {/* 1. ADD MISSION INPUT */}
+                         <div style={{ display: 'flex', gap: '10px' }}> 
+                             <input type="text" value={missionInput} onChange={(e) => setMissionInput(e.target.value)} placeholder={`Add mission for ${activeZone.title}...`} onKeyDown={(e) => e.key === 'Enter' && addMission()} autoFocus style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#111', border: '1px solid #333', borderLeft: `4px solid ${activeZone.color}`, color: 'white', outline: 'none', fontSize: '16px' }} /> 
+                             <button onClick={() => addMission()} style={{ background: '#333', border: 'none', borderRadius: '16px', width: '50px', color: 'white', cursor: 'pointer' }}><Plus size={24} /></button> 
+                         </div>
+
+                         {/* 2. ACTIVE MISSION LIST */}
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                             {activeMissions.filter(m => m.goal_id === activeZone.id).map(m => (
+                                 <div key={m.id} style={{ background: '#1a1a1a', padding: '16px', borderRadius: '16px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: activeZone.color }}></div> 
+                                     <span style={{ fontSize: '16px', color: '#ddd', flex: 1 }}>{m.task}</span> 
+                                     <button onClick={() => deleteMission(m.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}><X size={18} /></button> 
+                                 </div>
+                             ))}
+                             {activeMissions.filter(m => m.goal_id === activeZone.id).length === 0 && (
+                                 <div style={{ textAlign: 'center', color: '#444', padding: '20px', border: '1px dashed #333', borderRadius: '16px' }}>No missions yet.</div>
+                             )}
+                         </div>
+
+                         {/* 3. CAPTURE VISION (COMPACT) */}
+                         <div style={{ borderTop: '1px solid #222', paddingTop: '25px', marginTop: '10px' }}>
+                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+                                 <Camera size={16} color="#666" />
+                                 <span style={{ fontSize: '12px', color: '#666', fontWeight: 'bold' }}>ATTACH VISION TO THIS ZONE</span>
+                             </div>
+                             
+                             <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                 <button onClick={() => fileInputRef.current.click()} style={{ flex: 1, padding: '12px', background: '#1a1a1a', border: '1px solid #333', borderRadius: '12px', color: '#ddd', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><ImageIcon size={14}/> Photo</button>
+                                 <button onClick={() => setIsPrivateVision(!isPrivateVision)} style={{ flex: 1, padding: '12px', background: '#1a1a1a', border: isPrivateVision ? '1px solid #ef4444' : '1px solid #333', borderRadius: '12px', color: isPrivateVision ? '#ef4444' : '#666', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{isPrivateVision ? <Lock size={14}/> : <Unlock size={14}/>} {isPrivateVision ? 'Private' : 'Shared'}</button>
+                             </div>
+                             
+                             {(previewUrl) && (
+                                 <div style={{ width: '100%', height: '150px', background: '#111', borderRadius: '16px', overflow: 'hidden', marginBottom: '15px', position: 'relative' }}>
+                                     <img src={previewUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                     <button onClick={clearMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', color: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px' }}>X</button>
+                                 </div>
+                             )}
+
+                             {/* Hidden inputs reused from main scope */}
+                             <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => handleFileSelect(e, 'image')} style={{ display: 'none' }} />
+                             
+                             {previewUrl && (
+                                 <button onClick={handleCapture} disabled={uploading} style={{ width: '100%', padding: '16px', background: activeZone.color, color: 'white', border: 'none', borderRadius: '16px', fontWeight: 'bold' }}>
+                                     {uploading ? 'UPLOADING...' : 'CONFIRM UPLOAD'}
+                                 </button>
+                             )}
+                         </div>
+                     </div>
+                 </div>
+             )}
+             
+             {/* LAUNCH FOOTER */}
              <div style={{ marginTop: '20px' }}> <button onClick={handleLockIn} style={{ width: '100%', padding: '24px', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', border: 'none', borderRadius: '24px', fontSize: '20px', fontWeight: '900', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 10px 30px -10px rgba(168, 85, 247, 0.6)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}> <ShieldCheck size={28} /> Initiate Protocol </button> <p style={{ textAlign: 'center', color: '#555', fontSize: '12px', marginTop: '15px' }}>Locking in prevents retreat.</p> </div>
          </div>
        )}
