@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
@@ -95,9 +95,10 @@ function VisionBoard({ session }) {
   const [showGuide, setShowGuide] = useState(false);
   const [historyData, setHistoryData] = useState([]);
   
-  // --- NEW STATE: ZONE MODAL (THE SPOKE) & TABS ---
+  // --- NEW STATES FOR TRIALS 3-5 ---
   const [activeZone, setActiveZone] = useState(null); 
-  const [modalTab, setModalTab] = useState('mission'); // 'mission' or 'vision'
+  const [modalTab, setModalTab] = useState('mission'); 
+  const [showManifestReview, setShowManifestReview] = useState(false); // The Checkout Screen
 
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -256,8 +257,7 @@ function VisionBoard({ session }) {
   const initiateDeleteThought = (id) => { setDeleteModal({ isOpen: true, type: 'thought', id, title: 'Delete this vision?' }); };
   const executeDelete = async () => { const { type, id } = deleteModal; if (type === 'goal') { await supabase.from('goals').delete().eq('id', id); setMyGoals(myGoals.filter(g => g.id !== id)); if(selectedGoalId === id) setSelectedGoalId(null); } else if (type === 'thought') { await supabase.from('thoughts').delete().eq('id', id); const newThoughts = myThoughts.filter(t => t.id !== id); setMyThoughts(newThoughts); calculateStreak(newThoughts); } setDeleteModal({ isOpen: false, type: null, id: null, title: '' }); };
   const addMission = async (taskText = missionInput, goalId = selectedGoalId) => { if (!taskText.trim()) return; const { data, error } = await supabase.from('missions').insert([{ task: taskText, user_id: session.user.id, completed: false, crushed: false, is_active: true, goal_id: goalId, is_private: isPrivateMission }]).select(); if (!error && data) { setMyMissions([...myMissions, data[0]]); setMissionInput(''); setIsPrivateMission(false); } };
-  const handleLockIn = () => { if(myMissions.filter(m => !m.completed && !m.crushed).length === 0) { if(!window.confirm("Mission Log is empty. Deploy anyway?")) return; } setProtocolModal(true); };
-  const executeProtocol = () => { setProtocolModal(false); confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] }); setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000); };
+  const handleLockIn = () => { setShowManifestReview(false); confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] }); setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000); };
   const toggleCompleted = async (mission) => { const newCompleted = !mission.completed; const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCompleted && !mission.completed) { const goal = myGoals.find(g => g.id === mission.goal_id); const color = goal ? goal.color : '#cbd5e1'; const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); if (allDone) { fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); } };
   const toggleCrushed = async (mission) => { const newCrushed = !mission.crushed; const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCrushed) { if (allDone) { const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]); else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id)); } };
   const handleDraftChange = (id, text) => { setTempVictoryNotes({ ...tempVictoryNotes, [id]: text }); };
@@ -297,6 +297,14 @@ function VisionBoard({ session }) {
       const missionCount = myMissions.filter(m => m.goal_id === goalId && !m.completed && !m.crushed).length;
       return { count: missionCount, lit: missionCount > 0 };
   };
+
+  // --- HELPER: GET UNIQUE RECENTS FOR ZONE ---
+  const getUniqueRecentsForZone = (goalId) => {
+      // Filter history for tasks matching this zone, dedup, and take top 5
+      const zoneHistory = historyData.filter(m => m.goal_id === goalId);
+      const unique = [...new Map(zoneHistory.map(item => [item['task'], item])).values()];
+      return unique.slice(0, 5);
+  }
 
   return (
     <div style={mode === 'night' ? nightStyle : morningStyle}>
@@ -349,13 +357,13 @@ function VisionBoard({ session }) {
                 <div>
                   <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>2. Mission vs Vision</h4>
                   <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Inside the sheet, toggle between <b>MISSION</b> (daily tasks) and <b>VISION</b> (uploads & goals).
+                    Inside the sheet, toggle between <b>MISSION</b> (daily tasks) and <b>VISION</b> (uploads & goals). Use "Enter" to rapid-fire tasks.
                   </p>
                 </div>
                 <div>
                   <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>3. Initiate Protocol</h4>
                   <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Once your zones are ready (lit up), hit the big purple button to lock in tomorrow.
+                    Once your zones are ready, hit the big purple button to review your <b>Manifest</b> and lock in the day.
                   </p>
                 </div>
               </div>
@@ -396,7 +404,7 @@ function VisionBoard({ session }) {
 
        {/* ... (Previous Modals for Delete/Cheer/Protocol/Partner) ... */}
        {deleteModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '85%', maxWidth: '300px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}> <h3 style={{ margin: '0 0 16px 0', color: 'white', fontSize: '18px' }}>{deleteModal.title}</h3> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setDeleteModal({ isOpen: false, type: null, id: null, title: '' })} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={executeDelete} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button> </div> </div> </div> )}
-       {protocolModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #a855f7', boxShadow: '0 0 40px rgba(168, 85, 247, 0.3)' }}> <Fingerprint size={48} color="#c084fc" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Contract With Tomorrow</h3> <p style={{ margin: '0 0 25px 0', color: '#cbd5e1', fontSize: '15px', lineHeight: '1.5' }}> "Does this plan demand your absolute best, or are you negotiating with weakness? Once you execute, there are no edits. Only results." </p> <div style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}> <button onClick={executeProtocol} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}> EXECUTE PROTOCOL </button> <button onClick={() => setProtocolModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> ABORT </button> </div> </div> </div> )}
+       {/* (OLD PROTOCOL MODAL REMOVED - REPLACED BY MANIFEST REVIEW) */}
        {cheerModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #16a34a', boxShadow: '0 0 40px rgba(22, 163, 74, 0.3)' }}> <MessageCircle size={48} color="#22c55e" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>Send a Boost</h3> <input type="text" placeholder="Keep pushing..." value={cheerInput} onChange={(e) => setCheerInput(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', color: 'white', marginBottom: '20px', outline: 'none', textAlign: 'center' }} /> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setCheerModal({ isOpen: false, missionId: null })} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={submitCheer} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>Send <Send size={14}/></button> </div> </div> </div> )}
        {partnerModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}> <Users size={48} color={currentProfile?.status === 'active' ? '#10b981' : '#60a5fa'} style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Ally Protocol</h3> {currentProfile?.status === 'active' && ( <> <p style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: ACTIVE</p> <div style={{ background: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}> <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>LINKED PARTNER:</p> <p style={{ color: 'white', fontWeight: 'bold', margin: '5px 0 0 0' }}>{currentProfile.partner_email}</p> </div> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> SEVER CONNECTION </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id === session.user.id && ( <> <p style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: PENDING ACCEPTANCE</p> <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>Invitation sent to <b>{currentProfile.partner_email}</b>. Waiting for them to confirm.</p> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: '#334155', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}> CANCEL INVITE </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <> <p style={{ color: '#f97316', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>INCOMING REQUEST</p> <p style={{ color: 'white', fontSize: '16px', marginBottom: '20px' }}><b>{currentProfile.partner_email}</b> wants to link protocols.</p> <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}> <button onClick={acceptInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><Check size={20} /></button> <button onClick={declineInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><XCircle size={20} /></button> </div> </> )} {!currentProfile?.partner_id && ( <> <p style={{ margin: '0 0 20px 0', color: '#cbd5e1', fontSize: '14px' }}> "Iron sharpens iron. Link with one partner to see their visions." </p> <input type="email" placeholder="Partner Email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#334155', border: '1px solid #475569', color: 'white', marginBottom: '20px', outline: 'none' }} /> <button onClick={sendInvite} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}> <LinkIcon size={16} /> SEND INVITE </button> </> )} <button onClick={() => setPartnerModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> CLOSE </button> </div> </div> )}
 
@@ -621,10 +629,21 @@ function VisionBoard({ session }) {
                              {modalTab === 'mission' && (
                                  <>
                                      <div style={{ display: 'flex', gap: '10px' }}> 
-                                         <input type="text" value={missionInput} onChange={(e) => setMissionInput(e.target.value)} placeholder="Add specific task..." onKeyDown={(e) => e.key === 'Enter' && addMission()} autoFocus style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#000', border: '1px solid #333', color: 'white', outline: 'none', fontSize: '16px' }} /> 
+                                         <input type="text" value={missionInput} onChange={(e) => setMissionInput(e.target.value)} placeholder="Type task & hit Enter..." onKeyDown={(e) => { if(e.key === 'Enter') { addMission(); }}} autoFocus style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#000', border: '1px solid #333', color: 'white', outline: 'none', fontSize: '16px' }} /> 
                                          <button onClick={() => addMission()} style={{ background: '#333', border: 'none', borderRadius: '16px', width: '50px', color: 'white', cursor: 'pointer' }}><Plus size={24} /></button> 
                                      </div>
                                      
+                                     {/* QUICK ADD CHIPS */}
+                                     {getUniqueRecentsForZone(activeZone.id).length > 0 && (
+                                         <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+                                             {getUniqueRecentsForZone(activeZone.id).map(m => (
+                                                 <button key={'quick-'+m.id} onClick={() => addMission(m.task, activeZone.id)} style={{ padding: '8px 12px', borderRadius: '20px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#aaa', fontSize: '12px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                                                     + {m.task}
+                                                 </button>
+                                             ))}
+                                         </div>
+                                     )}
+
                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                          {activeMissions.filter(m => m.goal_id === activeZone.id).map(m => (
                                              <div key={m.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '16px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -668,8 +687,49 @@ function VisionBoard({ session }) {
                  </div>
              )}
              
+             {/* THE MANIFEST REVIEW MODAL (CHECKOUT) */}
+             {showManifestReview && (
+                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                     <div style={{ background: '#1e293b', borderRadius: '24px', width: '90%', maxWidth: '360px', border: '1px solid #475569', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+                         <div style={{ padding: '20px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                             <h2 style={{ margin: 0, fontSize: '18px', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}><ClipboardList size={20} color="#a855f7" /> FINAL MANIFEST</h2>
+                             <button onClick={() => setShowManifestReview(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
+                         </div>
+                         <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+                             <p style={{ margin: '0 0 20px 0', color: '#94a3b8', fontSize: '13px', textAlign: 'center' }}>Review your orders. Once executed, the day begins.</p>
+                             
+                             {/* GROUPED LIST */}
+                             {[null, ...myGoals.map(g => g.id)].map(gid => {
+                                 const tasks = activeMissions.filter(m => m.goal_id === gid);
+                                 if (tasks.length === 0) return null;
+                                 return (
+                                     <div key={gid || 'gen'} style={{ marginBottom: '20px' }}>
+                                         <h4 style={{ margin: '0 0 10px 0', color: getGoalColor(gid), fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>{getGoalTitle(gid)}</h4>
+                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                             {tasks.map(m => (
+                                                 <div key={m.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', color: '#e2e8f0', fontSize: '14px' }}>
+                                                     <div style={{ width: '4px', height: '4px', background: '#cbd5e1', borderRadius: '50%' }}></div>
+                                                     {m.task}
+                                                 </div>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 )
+                             })}
+                             
+                             {activeMissions.length === 0 && <div style={{ textAlign: 'center', color: '#ef4444', fontWeight: 'bold' }}>WARNING: PROTOCOL EMPTY</div>}
+                         </div>
+                         <div style={{ padding: '20px', borderTop: '1px solid #334155' }}>
+                             <button onClick={handleLockIn} style={{ width: '100%', padding: '16px', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', border: 'none', borderRadius: '16px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                 CONFIRM & EXECUTE
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             )}
+             
              {/* LAUNCH FOOTER */}
-             <div style={{ marginTop: '20px' }}> <button onClick={handleLockIn} style={{ width: '100%', padding: '24px', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', border: 'none', borderRadius: '24px', fontSize: '20px', fontWeight: '900', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 10px 30px -10px rgba(168, 85, 247, 0.6)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}> <ShieldCheck size={28} /> Initiate Protocol </button> <p style={{ textAlign: 'center', color: '#555', fontSize: '12px', marginTop: '15px' }}>Locking in prevents retreat.</p> </div>
+             <div style={{ marginTop: '20px' }}> <button onClick={() => setShowManifestReview(true)} style={{ width: '100%', padding: '24px', background: 'linear-gradient(to right, #c084fc, #a855f7)', color: 'white', border: 'none', borderRadius: '24px', fontSize: '20px', fontWeight: '900', letterSpacing: '1px', cursor: 'pointer', boxShadow: '0 10px 30px -10px rgba(168, 85, 247, 0.6)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}> <ShieldCheck size={28} /> Initiate Protocol </button> <p style={{ textAlign: 'center', color: '#555', fontSize: '12px', marginTop: '15px' }}>Locking in prevents retreat.</p> </div>
          </div>
        )}
 
