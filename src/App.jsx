@@ -429,6 +429,7 @@ function VisionBoard({ session }) {
               </button>
               
               {/* PROFILE DROPDOWN MENU */}
+            {/* PROFILE DROPDOWN MENU */}
               {showProfileMenu && (
                   <div style={{ position: 'absolute', top: '55px', left: 0, background: mode === 'night' ? '#1e293b' : 'white', border: '1px solid #334155', borderRadius: '16px', padding: '8px', width: '180px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                       <button onClick={() => avatarInputRef.current.click()} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: mode === 'night' ? 'white' : '#1e293b', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
@@ -437,7 +438,14 @@ function VisionBoard({ session }) {
                       <button onClick={() => { setMode(mode === 'night' ? 'morning' : 'night'); setShowProfileMenu(false); }} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: mode === 'night' ? 'white' : '#1e293b', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
                           {mode === 'night' ? <><Sun size={16} /> Morning Mode</> : <><Moon size={16} /> Night Mode</>}
                       </button>
+                      
                       <div style={{ height: '1px', background: '#334155', margin: '4px 0' }}></div>
+                      
+                      {/* NEW CLEAR BOARD BUTTON */}
+                      <button onClick={() => { clearDailyMissions(); setShowProfileMenu(false); }} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: '#fbbf24', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
+                          <Eraser size={16} /> Clear Board
+                      </button>
+
                       <button onClick={handleLogout} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: '#ef4444', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
                           <LogOut size={16} /> Sign Out
                       </button>
