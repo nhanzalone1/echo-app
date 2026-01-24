@@ -6,6 +6,8 @@ import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
 import Onboarding from './Onboarding';
 import SystemGuide from './SystemGuide';
+import NightModeBriefing from './NightModeBriefing';
+import MorningModeBriefing from './MorningModeBriefing';
 
 // --- IMPORT THE TRIBUTE IMAGE DIRECTLY ---
 import tributeImage from './tribute.png'; 
@@ -189,9 +191,13 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [historyData, setHistoryData] = useState([]);
   
   // --- NEW STATES FOR TRIALS 3-5 ---
-  const [activeZone, setActiveZone] = useState(null); 
-  const [modalTab, setModalTab] = useState('mission'); 
+  const [activeZone, setActiveZone] = useState(null);
+  const [modalTab, setModalTab] = useState('mission');
   const [showManifestReview, setShowManifestReview] = useState(false); // The Checkout Screen
+
+  // --- MODE BRIEFING STATES ---
+  const [showNightBriefing, setShowNightBriefing] = useState(false);
+  const [showMorningBriefing, setShowMorningBriefing] = useState(false);
 
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -248,6 +254,29 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   }, []);
 
   useEffect(() => { localStorage.setItem('visionMode', mode); }, [mode]);
+
+  // --- CHECK FOR FIRST-TIME MODE ENTRY ---
+  useEffect(() => {
+    const nightBriefingSeen = localStorage.getItem('nightBriefingSeen');
+    const morningBriefingSeen = localStorage.getItem('morningBriefingSeen');
+
+    if (mode === 'night' && !nightBriefingSeen) {
+      setShowNightBriefing(true);
+    } else if (mode === 'morning' && !morningBriefingSeen) {
+      setShowMorningBriefing(true);
+    }
+  }, [mode]);
+
+  const handleCloseNightBriefing = () => {
+    localStorage.setItem('nightBriefingSeen', 'true');
+    setShowNightBriefing(false);
+  };
+
+  const handleCloseMorningBriefing = () => {
+    localStorage.setItem('morningBriefingSeen', 'true');
+    setShowMorningBriefing(false);
+  };
+
   useEffect(() => { fetchAllData(); }, [session]);
 
   const showNotification = (msg, type = 'success') => { setNotification({ msg, type }); setTimeout(() => setNotification(null), 4000); };
@@ -946,6 +975,10 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         </div>
 
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
+
+      {/* --- MODE BRIEFINGS --- */}
+      {showNightBriefing && <NightModeBriefing onClose={handleCloseNightBriefing} />}
+      {showMorningBriefing && <MorningModeBriefing onClose={handleCloseMorningBriefing} />}
     </div>
   );
 }
