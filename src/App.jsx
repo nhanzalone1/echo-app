@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
@@ -8,6 +8,7 @@ import Onboarding from './Onboarding';
 import SystemGuide from './SystemGuide';
 import NightModeBriefing from './NightModeBriefing';
 import MorningModeBriefing from './MorningModeBriefing';
+import ScheduleSettings from './ScheduleSettings';
 
 // --- IMPORT THE TRIBUTE IMAGE DIRECTLY ---
 import tributeImage from './tribute.png'; 
@@ -199,6 +200,11 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [showNightBriefing, setShowNightBriefing] = useState(false);
   const [showMorningBriefing, setShowMorningBriefing] = useState(false);
 
+  // --- SCHEDULE STATES ---
+  const [showScheduleSettings, setShowScheduleSettings] = useState(false);
+  const [schedule, setSchedule] = useState({ morning_start_time: '06:00', night_start_time: '21:00' });
+  const previousModeRef = useRef(mode);
+
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
@@ -275,6 +281,80 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const handleCloseMorningBriefing = () => {
     localStorage.setItem('morningBriefingSeen', 'true');
     setShowMorningBriefing(false);
+  };
+
+  // --- AUTO-ARCHIVE: Runs when transitioning from Morning to Night ---
+  const autoArchiveMissions = useCallback(async () => {
+    console.log('[SYSTEM] Auto-archiving missions for night transition...');
+    // Delete incomplete missions, archive crushed ones
+    await supabase.from('missions').delete().eq('user_id', session.user.id).eq('crushed', false).eq('is_active', true);
+    await supabase.from('missions').update({ is_active: false }).eq('user_id', session.user.id).eq('crushed', true);
+    fetchAllData();
+  }, [session]);
+
+  // --- SYSTEM CLOCK: Check time every minute ---
+  useEffect(() => {
+    const checkSystemTime = () => {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const [mornH, mornM] = schedule.morning_start_time.split(':').map(Number);
+      const [nightH, nightM] = schedule.night_start_time.split(':').map(Number);
+      const morningMinutes = mornH * 60 + mornM;
+      const nightMinutes = nightH * 60 + nightM;
+
+      let newMode;
+      if (currentMinutes >= morningMinutes && currentMinutes < nightMinutes) {
+        newMode = 'morning';
+      } else {
+        newMode = 'night';
+      }
+
+      // Detect Morning -> Night transition for auto-archive
+      if (previousModeRef.current === 'morning' && newMode === 'night') {
+        autoArchiveMissions();
+      }
+
+      previousModeRef.current = newMode;
+
+      if (mode !== newMode) {
+        setMode(newMode);
+      }
+    };
+
+    // Initial check
+    checkSystemTime();
+
+    // Check every minute
+    const interval = setInterval(checkSystemTime, 60000);
+
+    return () => clearInterval(interval);
+  }, [schedule, mode, autoArchiveMissions]);
+
+  // --- FETCH SCHEDULE FROM PROFILE ---
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('morning_start_time, night_start_time')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!error && data) {
+        setSchedule({
+          morning_start_time: data.morning_start_time || '06:00',
+          night_start_time: data.night_start_time || '21:00'
+        });
+      }
+    };
+
+    fetchSchedule();
+  }, [session]);
+
+  const handleScheduleSave = (newSchedule) => {
+    setSchedule(newSchedule);
   };
 
   useEffect(() => { fetchAllData(); }, [session]);
@@ -557,8 +637,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
                       <button onClick={() => avatarInputRef.current.click()} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: mode === 'night' ? 'white' : '#1e293b', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
                           <Upload size={16} /> Upload Photo
                       </button>
-                      <button onClick={() => { setMode(mode === 'night' ? 'morning' : 'night'); setShowProfileMenu(false); }} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: mode === 'night' ? 'white' : '#1e293b', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
-                          {mode === 'night' ? <><Sun size={16} /> Morning Mode</> : <><Moon size={16} /> Night Mode</>}
+                      <button onClick={() => { setShowScheduleSettings(true); setShowProfileMenu(false); }} style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: mode === 'night' ? 'white' : '#1e293b', fontSize: '14px', cursor: 'pointer', textAlign: 'left', borderRadius: '8px' }}>
+                          <Clock size={16} /> Schedule
                       </button>
                       
                       <div style={{ height: '1px', background: '#334155', margin: '4px 0' }}></div>
@@ -979,6 +1059,16 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       {/* --- MODE BRIEFINGS --- */}
       {showNightBriefing && <NightModeBriefing onClose={handleCloseNightBriefing} />}
       {showMorningBriefing && <MorningModeBriefing onClose={handleCloseMorningBriefing} />}
+
+      {/* --- SCHEDULE SETTINGS --- */}
+      {showScheduleSettings && (
+        <ScheduleSettings
+          session={session}
+          currentSchedule={schedule}
+          onClose={() => setShowScheduleSettings(false)}
+          onSave={handleScheduleSave}
+        />
+      )}
     </div>
   );
 }
