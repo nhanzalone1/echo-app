@@ -599,32 +599,19 @@ function VisionBoard({ session }) {
                  </div>
              )} 
              
-             {/* THE SPOKE: GLASS SHEET MODAL */}
+             {/* ZONE DETAIL MODAL */}
              {activeZone && (
-                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.6)', zIndex: 11000 }}>
-                     <div style={{ 
-                         position: 'absolute', 
-                         bottom: 0, 
-                         left: 0, 
-                         width: '100%', 
-                         height: '90%', 
-                         background: 'rgba(18, 18, 18, 0.95)', 
-                         backdropFilter: 'blur(20px)',
-                         borderRadius: '30px 30px 0 0',
-                         borderTop: `1px solid ${activeZone.color}44`,
-                         display: 'flex', 
-                         flexDirection: 'column', 
-                         animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' 
-                     }}>
+                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: '#1e293b', borderRadius: '24px', width: '92%', maxWidth: '400px', border: `1px solid ${activeZone.color}66`, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '85vh', boxShadow: `0 0 40px ${activeZone.color}33` }}>
                          
-                         {/* SHEET HEADER */}
-                         <div style={{ padding: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                             <h2 style={{ margin: 0, fontSize: '28px', color: activeZone.color, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '900' }}>{activeZone.title}</h2>
-                             <button onClick={() => setActiveZone(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18}/></button>
+                         {/* MODAL HEADER */}
+                         <div style={{ padding: '20px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                             <h2 style={{ margin: 0, fontSize: '18px', color: 'white', display: 'flex', alignItems: 'center', gap: '10px' }}><Target size={20} color={activeZone.color} /> {activeZone.title.toUpperCase()}</h2>
+                             <button onClick={() => setActiveZone(null)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={20}/></button>
                          </div>
 
                          {/* TOGGLE SWITCH */}
-                         <div style={{ padding: '0 25px 20px 25px' }}>
+                         <div style={{ padding: '15px 20px' }}>
                              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', padding: '4px' }}>
                                  <button onClick={() => setModalTab('mission')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: modalTab === 'mission' ? activeZone.color : 'transparent', color: 'white', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>MISSION</button>
                                  <button onClick={() => setModalTab('vision')} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: modalTab === 'vision' ? activeZone.color : 'transparent', color: 'white', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>VISION</button>
@@ -632,7 +619,7 @@ function VisionBoard({ session }) {
                          </div>
 
                          {/* CONTENT AREA */}
-                         <div style={{ flex: 1, overflowY: 'auto', padding: '0 25px 40px 25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                         <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px 20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                              
                              {modalTab === 'mission' && (
                                  <>
