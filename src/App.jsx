@@ -4,6 +4,7 @@ import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X,
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
+import Onboarding from './Onboarding';
 
 // --- IMPORT THE TRIBUTE IMAGE DIRECTLY ---
 import tributeImage from './tribute.png'; 
@@ -14,6 +15,7 @@ const globalStyles = `
   ::-webkit-scrollbar { display: none; width: 0px; background: transparent; }
   input, textarea, button, select { font-size: 16px !important; }
   -webkit-tap-highlight-color: transparent;
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 `;
 
 // --- AUTH COMPONENT ---
@@ -57,12 +59,86 @@ function Auth({ onLogin }) {
 // --- MAIN APP ---
 export default function App() {
   const [session, setSession] = useState(null);
+  const [isFirstTimer, setIsFirstTimer] = useState(null); // null = loading, true/false = determined
+  const [profileLoading, setProfileLoading] = useState(true);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      // Reset states when session changes
+      if (!session) {
+        setIsFirstTimer(null);
+        setProfileLoading(true);
+      }
+    });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Fetch profile to check is_first_timer
+  useEffect(() => {
+    async function checkFirstTimer() {
+      if (!session) {
+        setProfileLoading(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('is_first_timer')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          console.error('Error fetching profile:', error);
+          setIsFirstTimer(false); // Default to not first-timer on error
+        } else {
+          setIsFirstTimer(data?.is_first_timer ?? false);
+        }
+      } catch (err) {
+        console.error('Profile check error:', err);
+        setIsFirstTimer(false);
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+
+    checkFirstTimer();
+  }, [session]);
+
+  const handleOnboardingComplete = () => {
+    setIsFirstTimer(false);
+  };
+
   if (!session) return <Auth />;
+
+  // Show loading state while checking profile
+  if (profileLoading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        minHeight: '100dvh',
+        background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#c084fc'
+      }}>
+        <style>{globalStyles}</style>
+        <div style={{ textAlign: 'center' }}>
+          <Fingerprint size={48} style={{ animation: 'pulse 1s infinite', marginBottom: '20px' }} />
+          <p style={{ letterSpacing: '2px', fontSize: '14px' }}>INITIALIZING...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show onboarding for first-time users
+  if (isFirstTimer) {
+    return <Onboarding session={session} onComplete={handleOnboardingComplete} />;
+  }
+
   return <VisionBoard session={session} />;
 }
 
