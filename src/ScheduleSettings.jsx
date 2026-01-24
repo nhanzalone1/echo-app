@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Clock, Sun, Moon, Save, X, AlertTriangle } from 'lucide-react';
+import { Clock, Sun, Moon, Save, X, AlertTriangle, Check } from 'lucide-react';
 
 export default function ScheduleSettings({ session, currentSchedule, onClose, onSave }) {
   const [morningTime, setMorningTime] = useState(currentSchedule?.morning_start_time || '06:00');
   const [nightTime, setNightTime] = useState(currentSchedule?.night_start_time || '21:00');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   const handleSave = async () => {
     // Validate times
@@ -17,23 +18,58 @@ export default function ScheduleSettings({ session, currentSchedule, onClose, on
 
     setSaving(true);
     setError('');
+    setSuccess(false);
 
     try {
-      const { error: updateError } = await supabase
+      // Debug: Log what we're sending
+      console.log('[SCHEDULE] Attempting to save:', {
+        user_id: session.user.id,
+        morning_start_time: morningTime,
+        night_start_time: nightTime
+      });
+
+      const { data, error: updateError } = await supabase
         .from('profiles')
         .update({
           morning_start_time: morningTime,
           night_start_time: nightTime
         })
-        .eq('id', session.user.id);
+        .eq('id', session.user.id)
+        .select();
 
-      if (updateError) throw updateError;
+      // Debug: Log the full response
+      console.log('[SCHEDULE] Supabase response:', { data, error: updateError });
 
+      if (updateError) {
+        console.error('[SCHEDULE] Supabase error details:', {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code
+        });
+        throw updateError;
+      }
+
+      // Check if any rows were actually updated
+      if (!data || data.length === 0) {
+        console.warn('[SCHEDULE] No rows updated - profile may not exist');
+        throw new Error('No profile found to update');
+      }
+
+      console.log('[SCHEDULE] Successfully updated:', data);
+
+      // Show success state
+      setSuccess(true);
       onSave({ morning_start_time: morningTime, night_start_time: nightTime });
-      onClose();
+
+      // Close after showing success
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+
     } catch (err) {
-      console.error('Schedule save error:', err);
-      setError('Failed to save schedule.');
+      console.error('[SCHEDULE] Save error:', err);
+      setError(err.message || 'Failed to save schedule.');
     } finally {
       setSaving(false);
     }
@@ -338,26 +374,38 @@ export default function ScheduleSettings({ session, currentSchedule, onClose, on
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || success}
             style={{
               flex: 2,
               padding: '16px',
               borderRadius: '12px',
               border: 'none',
-              background: saving ? '#334155' : 'white',
-              color: saving ? '#64748b' : 'black',
+              background: success ? '#10b981' : (saving ? '#334155' : 'white'),
+              color: success ? 'white' : (saving ? '#64748b' : 'black'),
               fontSize: '13px',
               fontWeight: '700',
               letterSpacing: '1px',
-              cursor: saving ? 'not-allowed' : 'pointer',
+              cursor: (saving || success) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '8px'
+              gap: '8px',
+              transition: 'all 0.3s'
             }}
           >
-            <Save size={16} />
-            {saving ? 'SAVING...' : 'LOCK SCHEDULE'}
+            {success ? (
+              <>
+                <Check size={16} />
+                SYSTEM UPDATED
+              </>
+            ) : saving ? (
+              'SAVING...'
+            ) : (
+              <>
+                <Save size={16} />
+                LOCK SCHEDULE
+              </>
+            )}
           </button>
         </div>
       </div>
