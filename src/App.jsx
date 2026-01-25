@@ -4,6 +4,9 @@ import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X,
 import confetti from 'canvas-confetti';
 import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import Onboarding from './Onboarding';
 import SystemGuide from './SystemGuide';
 import NightModeBriefing from './NightModeBriefing';
@@ -230,6 +233,24 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
   const goalColors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#64748b'];
   const [newGoalColor, setNewGoalColor] = useState(goalColors[0]);
+
+  // --- MISSION COLOR PALETTE ---
+  const missionColors = [
+    { name: 'Slate', hex: '#475569' },
+    { name: 'Graphite', hex: '#1f2937' },
+    { name: 'Cobalt', hex: '#1e3a8a' },
+    { name: 'Forest', hex: '#064e3b' },
+    { name: 'Crimson', hex: '#991b1b' },
+    { name: 'Amber', hex: '#b45309' },
+    { name: 'Violet', hex: '#4c1d95' },
+    { name: 'Onyx', hex: '#0a0a0a' }
+  ];
+
+  // --- MISSION EDIT STATES ---
+  const [editingMission, setEditingMission] = useState(null);
+  const [editMissionText, setEditMissionText] = useState('');
+  const [editMissionColor, setEditMissionColor] = useState('#475569');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fileInputRef = useRef(null);
   const avatarInputRef = useRef(null);
@@ -458,7 +479,80 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const initiateDeleteGoal = (id, title, e) => { e.stopPropagation(); setDeleteModal({ isOpen: true, type: 'goal', id, title: `Delete "${title}"?` }); };
   const initiateDeleteThought = (id) => { setDeleteModal({ isOpen: true, type: 'thought', id, title: 'Delete this vision?' }); };
   const executeDelete = async () => { const { type, id } = deleteModal; if (type === 'goal') { await supabase.from('goals').delete().eq('id', id); setMyGoals(myGoals.filter(g => g.id !== id)); if(selectedGoalId === id) setSelectedGoalId(null); } else if (type === 'thought') { await supabase.from('thoughts').delete().eq('id', id); const newThoughts = myThoughts.filter(t => t.id !== id); setMyThoughts(newThoughts); calculateStreak(newThoughts); } setDeleteModal({ isOpen: false, type: null, id: null, title: '' }); };
-  const addMission = async (taskText = missionInput, goalId = selectedGoalId) => { if (!taskText.trim()) return; const { data, error } = await supabase.from('missions').insert([{ task: taskText, user_id: session.user.id, completed: false, crushed: false, is_active: true, goal_id: goalId, is_private: isPrivateMission }]).select(); if (!error && data) { setMyMissions([...myMissions, data[0]]); setMissionInput(''); setIsPrivateMission(false); } };
+  const addMission = async (taskText = missionInput, goalId = selectedGoalId) => {
+    if (!taskText.trim()) return;
+    const zoneMissions = myMissions.filter(m => m.goal_id === goalId);
+    const nextPosition = zoneMissions.length > 0 ? Math.max(...zoneMissions.map(m => m.position || 0)) + 1 : 0;
+    const { data, error } = await supabase.from('missions').insert([{
+      task: taskText,
+      user_id: session.user.id,
+      completed: false,
+      crushed: false,
+      is_active: true,
+      goal_id: goalId,
+      is_private: isPrivateMission,
+      position: nextPosition,
+      color: '#475569'
+    }]).select();
+    if (!error && data) {
+      setMyMissions([...myMissions, data[0]]);
+      setMissionInput('');
+      setIsPrivateMission(false);
+    }
+  };
+
+  // --- MISSION REORDER HANDLER ---
+  const handleMissionReorder = async (activeId, overId, zoneId) => {
+    const zoneMissions = myMissions.filter(m => m.goal_id === zoneId && !m.completed && !m.crushed);
+    const oldIndex = zoneMissions.findIndex(m => m.id === activeId);
+    const newIndex = zoneMissions.findIndex(m => m.id === overId);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(zoneMissions, oldIndex, newIndex);
+
+    // Update positions
+    const updates = reordered.map((m, idx) => ({ ...m, position: idx }));
+
+    // Optimistic update
+    const otherMissions = myMissions.filter(m => m.goal_id !== zoneId || m.completed || m.crushed);
+    setMyMissions([...otherMissions, ...updates]);
+
+    // Persist to database
+    for (const mission of updates) {
+      await supabase.from('missions').update({ position: mission.position }).eq('id', mission.id);
+    }
+  };
+
+  // --- MISSION EDIT HANDLERS ---
+  const openMissionEdit = (mission) => {
+    setEditingMission(mission);
+    setEditMissionText(mission.task);
+    setEditMissionColor(mission.color || '#475569');
+    setShowDeleteConfirm(false);
+  };
+
+  const saveMissionEdit = async () => {
+    if (!editingMission || !editMissionText.trim()) return;
+
+    const { error } = await supabase.from('missions')
+      .update({ task: editMissionText, color: editMissionColor })
+      .eq('id', editingMission.id);
+
+    if (!error) {
+      setMyMissions(myMissions.map(m =>
+        m.id === editingMission.id ? { ...m, task: editMissionText, color: editMissionColor } : m
+      ));
+      setEditingMission(null);
+    }
+  };
+
+  const confirmDeleteMission = async () => {
+    if (!editingMission) return;
+    await deleteMission(editingMission.id);
+    setEditingMission(null);
+    setShowDeleteConfirm(false);
+  };
   const handleLockIn = () => { setShowManifestReview(false); confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] }); setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000); };
   const toggleCompleted = async (mission) => { const newCompleted = !mission.completed; const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCompleted && !mission.completed) { const goal = myGoals.find(g => g.id === mission.goal_id); const color = goal ? goal.color : '#cbd5e1'; const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); if (allDone) { fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); } };
   const toggleCrushed = async (mission) => { const newCrushed = !mission.crushed; const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCrushed) { if (allDone) { const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]); else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id)); } };
@@ -507,6 +601,45 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       const unique = [...new Map(zoneHistory.map(item => [item['task'], item])).values()];
       return unique.slice(0, 5);
   }
+
+  // --- DND SENSORS ---
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // --- SORTABLE MISSION ITEM COMPONENT ---
+  const SortableMissionItem = ({ mission, zoneColor, onEdit }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: mission.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div ref={setNodeRef} style={style} {...attributes}>
+        <div style={{
+          background: mission.color || 'rgba(255,255,255,0.03)',
+          padding: '16px',
+          borderRadius: '16px',
+          border: '1px solid #333',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          {/* Drag Handle */}
+          <div {...listeners} style={{ cursor: 'grab', color: '#555', touchAction: 'none' }}>
+            <GripVertical size={18} />
+          </div>
+          <span style={{ fontSize: '16px', color: '#ddd', flex: 1 }}>{mission.task}</span>
+          <button onClick={() => onEdit(mission)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '4px' }}>
+            <Edit3 size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={mode === 'night' ? nightStyle : morningStyle}>
@@ -656,9 +789,9 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           </div>
 
           {/* --- TOP RIGHT: ALLY & HELP --- */}
-          <div style={{ display: 'flex', gap: '10px' }}> 
-              <button onClick={() => setShowGuide(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}>
-                <HelpCircle size={20} color={mode === 'night' ? 'white' : 'black'} />
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button onClick={onOpenSystemGuide} style={{ border: 'none', background: 'transparent', padding: '8px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', color: mode === 'night' ? '#64748b' : '#94a3b8' }}>
+                HOW IT WORKS
               </button>
               
               <div style={{ position: 'relative' }}>
@@ -841,20 +974,33 @@ function VisionBoard({ session, onOpenSystemGuide }) {
                                          </div>
                                      )}
 
-                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                         {activeMissions.filter(m => m.goal_id === activeZone.id).map(m => (
-                                             <div key={m.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '16px', border: '1px solid #333', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: activeZone.color }}></div> 
-                                                 <span style={{ fontSize: '16px', color: '#ddd', flex: 1 }}>{m.task}</span> 
-                                                 <button onClick={() => deleteMission(m.id)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}><X size={18} /></button> 
-                                             </div>
-                                         ))}
-                                         {activeMissions.filter(m => m.goal_id === activeZone.id).length === 0 && (
-                                             <div style={{ textAlign: 'center', color: '#666', padding: '30px', border: '1px dashed #333', borderRadius: '16px', fontSize: '14px' }}>List is empty for tomorrow.</div>
-                                         )}
-                                     </div>
-                                 </>
-                             )}
+
+                                    <DndContext
+                                      sensors={sensors}
+                                      collisionDetection={closestCenter}
+                                      onDragEnd={(event) => {
+                                        const { active, over } = event;
+                                        if (over && active.id !== over.id) {
+                                          handleMissionReorder(active.id, over.id, activeZone.id);
+                                        }
+                                      }}
+                                    >
+                                      <SortableContext
+                                        items={activeMissions.filter(m => m.goal_id === activeZone.id).sort((a, b) => (a.position || 0) - (b.position || 0)).map(m => m.id)}
+                                        strategy={verticalListSortingStrategy}
+                                      >
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                          {activeMissions.filter(m => m.goal_id === activeZone.id).sort((a, b) => (a.position || 0) - (b.position || 0)).map(m => (
+                                            <SortableMissionItem key={m.id} mission={m} zoneColor={activeZone.color} onEdit={openMissionEdit} />
+                                          ))}
+                                          {activeMissions.filter(m => m.goal_id === activeZone.id).length === 0 && (
+                                            <div style={{ textAlign: 'center', color: '#666', padding: '30px', border: '1px dashed #333', borderRadius: '16px', fontSize: '14px' }}>List is empty for tomorrow.</div>
+                                          )}
+                                        </div>
+                                      </SortableContext>
+                                    </DndContext>
+                                </>
+                            )}
 
                              {modalTab === 'vision' && (
                                  <>
@@ -1068,6 +1214,126 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           onClose={() => setShowScheduleSettings(false)}
           onSave={handleScheduleSave}
         />
+      )}
+
+      {/* --- MISSION EDIT MODAL --- */}
+      {editingMission && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.95)', zIndex: 50000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: '#0f0f12', borderRadius: '24px', width: '100%', maxWidth: '340px', border: '1px solid #1e293b', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '14px', color: 'white', fontWeight: '700', letterSpacing: '2px' }}>EDIT MISSION</span>
+              <button onClick={() => { setEditingMission(null); setShowDeleteConfirm(false); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
+            </div>
+
+            {!showDeleteConfirm ? (
+              <div style={{ padding: '24px' }}>
+                {/* Task Input */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#64748b', letterSpacing: '1px', marginBottom: '8px' }}>TASK</label>
+                  <input
+                    type="text"
+                    value={editMissionText}
+                    onChange={(e) => setEditMissionText(e.target.value)}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #1e293b', background: '#000', color: 'white', fontSize: '16px', outline: 'none' }}
+                  />
+                </div>
+
+                {/* Color Picker */}
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#64748b', letterSpacing: '1px', marginBottom: '12px' }}>COLOR</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                    {missionColors.map(c => (
+                      <button
+                        key={c.hex}
+                        onClick={() => setEditMissionColor(c.hex)}
+                        style={{
+                          width: '100%',
+                          aspectRatio: '1',
+                          borderRadius: '12px',
+                          background: c.hex,
+                          border: editMissionColor === c.hex ? '3px solid white' : '2px solid transparent',
+                          cursor: 'pointer',
+                          boxShadow: editMissionColor === c.hex ? `0 0 15px ${c.hex}` : 'none',
+                          transition: 'all 0.2s'
+                        }}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    style={{
+                      flex: 1,
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: '1px solid #7f1d1d',
+                      background: 'transparent',
+                      color: '#ef4444',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <Trash2 size={14} /> DELETE
+                  </button>
+                  <button
+                    onClick={saveMissionEdit}
+                    style={{
+                      flex: 2,
+                      padding: '14px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: 'white',
+                      color: 'black',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <Save size={14} /> SAVE CHANGES
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Delete Confirmation */
+              <div style={{ padding: '24px', textAlign: 'center' }}>
+                <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px auto' }}>
+                  <AlertCircle size={30} color="#ef4444" />
+                </div>
+                <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '18px' }}>CONFIRM DESTRUCTION</h3>
+                <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '14px' }}>This mission will be permanently deleted.</p>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #1e293b', background: 'transparent', color: '#94a3b8', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    onClick={confirmDeleteMission}
+                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    DELETE
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
