@@ -117,8 +117,11 @@ export default function App() {
     checkFirstTimer();
   }, [session]);
 
+  const [systemGuideMode, setSystemGuideMode] = useState('night');
+
   const handleOnboardingComplete = () => {
     setIsFirstTimer(false);
+    setSystemGuideMode('night');
     setShowSystemGuide(true); // Auto-open System Guide after onboarding
   };
 
@@ -126,7 +129,8 @@ export default function App() {
     setShowSystemGuide(false);
   };
 
-  const handleOpenSystemGuide = () => {
+  const handleOpenSystemGuide = (guideMode = 'night') => {
+    setSystemGuideMode(guideMode);
     setShowSystemGuide(true);
   };
 
@@ -161,7 +165,7 @@ export default function App() {
   return (
     <>
       <VisionBoard session={session} onOpenSystemGuide={handleOpenSystemGuide} />
-      {showSystemGuide && <SystemGuide onClose={handleCloseSystemGuide} />}
+      {showSystemGuide && <SystemGuide onClose={handleCloseSystemGuide} mode={systemGuideMode} />}
     </>
   );
 }
@@ -214,6 +218,40 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   // --- AUDIO REFS FOR FIREWORKS ---
   const launchAudioRef = useRef(null);
   const boomAudioRef = useRef(null);
+
+  // --- SECRET PORTAL (Triple Click) ---
+  const [secretFlash, setSecretFlash] = useState(false);
+  const clickCountRef = useRef(0);
+  const clickTimerRef = useRef(null);
+
+  const handleSecretPortal = () => {
+    clickCountRef.current += 1;
+
+    // Clear existing timer
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+    }
+
+    // If 3 clicks within 500ms, toggle mode
+    if (clickCountRef.current >= 3) {
+      clickCountRef.current = 0;
+
+      // Flash effect
+      setSecretFlash(true);
+      setTimeout(() => setSecretFlash(false), 300);
+
+      // Bypass all checks and toggle mode instantly
+      const newMode = mode === 'night' ? 'morning' : 'night';
+      setContractSigned(true); // Bypass contract check
+      setMode(newMode);
+      localStorage.setItem('visionMode', newMode);
+    } else {
+      // Reset after 500ms if not enough clicks
+      clickTimerRef.current = setTimeout(() => {
+        clickCountRef.current = 0;
+      }, 500);
+    }
+  };
 
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -896,7 +934,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
           {/* --- TOP RIGHT: ALLY & HELP --- */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button onClick={onOpenSystemGuide} style={{ border: 'none', background: 'transparent', padding: '8px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', color: mode === 'night' ? '#64748b' : '#94a3b8' }}>
+              <button onClick={() => onOpenSystemGuide(mode)} style={{ border: 'none', background: 'transparent', padding: '8px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', color: mode === 'night' ? '#64748b' : '#94a3b8' }}>
                 HOW IT WORKS
               </button>
               
@@ -1132,12 +1170,42 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           >
             SYSTEM GUIDE
           </button>
-          <div style={{ opacity: 0.4, fontSize: '10px', letterSpacing: '1px', color: mode === 'night' ? '#555' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+          <div
+            onClick={handleSecretPortal}
+            style={{
+              opacity: 0.4,
+              fontSize: '10px',
+              letterSpacing: '1px',
+              color: mode === 'night' ? '#555' : '#94a3b8',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              cursor: 'default',
+              userSelect: 'none',
+              transition: 'all 0.2s'
+            }}
+          >
             <Check size={12} /> SYSTEM OPERATIONAL • v1.0
           </div>
+
+          {/* SECRET PORTAL FLASH */}
+          {secretFlash && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: mode === 'night' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(168, 85, 247, 0.3)',
+              zIndex: 99999,
+              pointerEvents: 'none',
+              animation: 'fadeOut 0.3s forwards'
+            }} />
+          )}
         </div>
 
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } } @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } } @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }`}</style>
 
       {/* --- MODE BRIEFINGS --- */}
       {showNightBriefing && <NightModeBriefing onClose={handleCloseNightBriefing} />}

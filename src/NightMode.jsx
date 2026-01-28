@@ -931,7 +931,7 @@ export default function NightMode({
       {onOpenSystemGuide && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
           <button
-            onClick={onOpenSystemGuide}
+            onClick={() => onOpenSystemGuide('night')}
             style={{
               background: 'none',
               border: 'none',

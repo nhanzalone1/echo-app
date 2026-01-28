@@ -1,23 +1,68 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft, LayoutGrid, Mountain, Target, FileSignature, CheckCircle, Eye, Users, Calendar } from 'lucide-react';
 
-const slides = [
+// Night Mode Slides (The Architect)
+const nightSlides = [
   {
-    title: 'DEFINE',
-    subtitle: 'Clarity is power. Set specific goals.'
+    icon: LayoutGrid,
+    title: 'THE ZONES',
+    subtitle: 'Your life is divided into Zones. These are the buckets where you want to win.',
+    color: '#c084fc'
   },
   {
-    title: 'EXECUTE',
-    subtitle: 'Action beats intention. Complete your list.'
+    icon: Mountain,
+    title: 'THE VISION',
+    subtitle: 'Every Zone has a Vision. This is your "North Star"—the ultimate goal you are chasing.',
+    color: '#a855f7'
   },
   {
-    title: 'MOMENTUM',
-    subtitle: 'Consistency compounds. Don\'t break the chain.'
+    icon: Target,
+    title: 'THE MISSION',
+    subtitle: "You can't climb the mountain in one day. Set 3-5 Missions for tomorrow to chip away at it.",
+    color: '#8b5cf6'
+  },
+  {
+    icon: FileSignature,
+    title: 'THE CONTRACT',
+    subtitle: 'Set your Start Time and sign. Once signed, the plan is locked. No edits. Only execution.',
+    color: '#7c3aed'
   }
 ];
 
-export default function SystemGuide({ onClose }) {
+// Morning Mode Slides (The Operator)
+const morningSlides = [
+  {
+    icon: CheckCircle,
+    title: 'THE EXECUTION',
+    subtitle: 'This is Execution Mode. Your specific tasks are laid out. Your only job is to turn them Green.',
+    color: '#10b981'
+  },
+  {
+    icon: Eye,
+    title: 'THE ALIGNMENT',
+    subtitle: 'Lost motivation? Check the Vision Tab. Remind yourself WHY you are doing these hard tasks.',
+    color: '#3b82f6'
+  },
+  {
+    icon: Users,
+    title: 'THE ALLIANCE',
+    subtitle: "Don't fight alone. Share progress with an Ally. If you win, they see it.",
+    color: '#f59e0b'
+  },
+  {
+    icon: Calendar,
+    title: 'THE SCOREBOARD',
+    subtitle: 'Consistency is currency. Green days build the chain. Gold days build the legend.',
+    color: '#fbbf24'
+  }
+];
+
+export default function SystemGuide({ onClose, mode = 'night' }) {
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const slides = mode === 'night' ? nightSlides : morningSlides;
+  const CurrentIcon = slides[currentSlide].icon;
+  const accentColor = slides[currentSlide].color;
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
@@ -32,6 +77,7 @@ export default function SystemGuide({ onClose }) {
   };
 
   const isLastSlide = currentSlide === slides.length - 1;
+  const isNight = mode === 'night';
 
   return (
     <div style={{
@@ -40,9 +86,9 @@ export default function SystemGuide({ onClose }) {
       left: 0,
       width: '100%',
       height: '100%',
-      background: 'rgba(0, 0, 0, 0.85)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
+      background: 'rgba(0, 0, 0, 0.9)',
+      backdropFilter: 'blur(16px)',
+      WebkitBackdropFilter: 'blur(16px)',
       zIndex: 50000,
       display: 'flex',
       alignItems: 'center',
@@ -50,43 +96,62 @@ export default function SystemGuide({ onClose }) {
       padding: '20px'
     }}>
       <div style={{
-        maxWidth: '360px',
+        maxWidth: '380px',
         width: '100%',
-        background: '#0a0a0a',
-        borderRadius: '24px',
-        border: '1px solid #222',
+        background: 'linear-gradient(145deg, rgba(20, 20, 25, 0.95) 0%, rgba(10, 10, 12, 0.98) 100%)',
+        borderRadius: '28px',
+        border: `1px solid ${accentColor}33`,
         overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)'
+        boxShadow: `0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 40px ${accentColor}15`
       }}>
 
         {/* Content Area */}
         <div style={{
-          padding: '60px 40px',
+          padding: '50px 35px',
           textAlign: 'center',
-          minHeight: '280px',
+          minHeight: '320px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center'
         }}>
-          {/* Slide Number */}
+          {/* Mode Badge */}
           <div style={{
-            fontSize: '11px',
-            color: '#666',
+            fontSize: '10px',
+            color: accentColor,
             letterSpacing: '3px',
-            marginBottom: '30px'
+            marginBottom: '25px',
+            textTransform: 'uppercase',
+            fontWeight: '700'
           }}>
-            {String(currentSlide + 1).padStart(2, '0')} / {String(slides.length).padStart(2, '0')}
+            {isNight ? '🌙 THE ARCHITECT' : '☀️ THE OPERATOR'}
+          </div>
+
+          {/* Icon */}
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '24px',
+            background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}10 100%)`,
+            border: `2px solid ${accentColor}40`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '30px',
+            boxShadow: `0 0 30px ${accentColor}20`
+          }}>
+            <CurrentIcon size={36} color={accentColor} style={{ filter: `drop-shadow(0 0 8px ${accentColor})` }} />
           </div>
 
           {/* Title */}
           <h1 style={{
             margin: 0,
-            fontSize: '42px',
+            fontSize: '28px',
             fontWeight: '900',
             color: 'white',
-            letterSpacing: '4px',
-            marginBottom: '20px'
+            letterSpacing: '3px',
+            marginBottom: '16px',
+            textTransform: 'uppercase'
           }}>
             {slides[currentSlide].title}
           </h1>
@@ -95,9 +160,9 @@ export default function SystemGuide({ onClose }) {
           <p style={{
             margin: 0,
             fontSize: '15px',
-            color: '#888',
-            lineHeight: '1.6',
-            maxWidth: '280px'
+            color: '#94a3b8',
+            lineHeight: '1.7',
+            maxWidth: '300px'
           }}>
             {slides[currentSlide].subtitle}
           </p>
@@ -107,20 +172,21 @@ export default function SystemGuide({ onClose }) {
         <div style={{
           display: 'flex',
           justifyContent: 'center',
-          gap: '8px',
-          paddingBottom: '30px'
+          gap: '10px',
+          paddingBottom: '25px'
         }}>
-          {slides.map((_, index) => (
+          {slides.map((slide, index) => (
             <div
               key={index}
               onClick={() => setCurrentSlide(index)}
               style={{
-                width: index === currentSlide ? '24px' : '8px',
-                height: '8px',
-                borderRadius: '4px',
-                background: index === currentSlide ? 'white' : '#333',
+                width: index === currentSlide ? '28px' : '10px',
+                height: '10px',
+                borderRadius: '5px',
+                background: index === currentSlide ? accentColor : '#333',
                 cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.3s ease',
+                boxShadow: index === currentSlide ? `0 0 10px ${accentColor}60` : 'none'
               }}
             />
           ))}
@@ -159,18 +225,19 @@ export default function SystemGuide({ onClose }) {
               style={{
                 flex: 3,
                 padding: '20px',
-                background: 'white',
+                background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%)`,
                 border: 'none',
-                color: 'black',
+                color: 'white',
                 fontSize: '14px',
                 fontWeight: '800',
                 letterSpacing: '2px',
                 cursor: 'pointer',
                 textTransform: 'uppercase',
-                transition: 'background 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: `0 4px 20px ${accentColor}40`
               }}
             >
-              GET TO WORK
+              {isNight ? 'START PLANNING' : 'START EXECUTING'}
             </button>
           ) : (
             <button
