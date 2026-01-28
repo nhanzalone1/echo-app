@@ -209,6 +209,13 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [schedule, setSchedule] = useState({ morning_start_time: '06:00', night_start_time: '21:00' });
   const previousModeRef = useRef(mode);
 
+  // --- CONTRACT SIGNED STATE (Gatekeeper) ---
+  const [contractSigned, setContractSigned] = useState(false);
+
+  // --- AUDIO REFS FOR FIREWORKS ---
+  const launchAudioRef = useRef(null);
+  const boomAudioRef = useRef(null);
+
   // MENU STATE
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
@@ -332,9 +339,21 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         newMode = 'night';
       }
 
+      // GATEKEEPER: Only switch to night mode if contract is signed
+      // If it's night time but contract isn't signed, stay in morning mode
+      if (newMode === 'night' && !contractSigned && mode === 'morning') {
+        // Don't auto-switch, keep showing morning/contract view
+        return;
+      }
+
       // Detect Morning -> Night transition for auto-archive
       if (previousModeRef.current === 'morning' && newMode === 'night') {
         autoArchiveMissions();
+      }
+
+      // Reset contract when transitioning from night back to morning
+      if (previousModeRef.current === 'night' && newMode === 'morning') {
+        setContractSigned(false);
       }
 
       previousModeRef.current = newMode;
@@ -351,7 +370,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     const interval = setInterval(checkSystemTime, 60000);
 
     return () => clearInterval(interval);
-  }, [schedule, mode, autoArchiveMissions]);
+  }, [schedule, mode, autoArchiveMissions, contractSigned]);
 
   // --- FETCH SCHEDULE FROM PROFILE ---
   useEffect(() => {
@@ -466,7 +485,20 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           d.setDate(d.getDate() - i);
           const dateStr = d.toDateString();
           const stats = grouped[dateStr] || { total: 0, completed: 0, crushed: 0 };
-          days.push({ date: d, ...stats });
+          // Calculate color: GOLD (crushed), GREEN (100%), RED (incomplete)
+          let color = '#334155'; // Default: no data
+          if (stats.total > 0) {
+              const allComplete = (stats.completed + stats.crushed) === stats.total;
+              const hasCrushed = stats.crushed > 0;
+              if (allComplete && hasCrushed) {
+                  color = '#fbbf24'; // GOLD: 100% + at least one crushed
+              } else if (allComplete) {
+                  color = '#10b981'; // GREEN: 100% complete
+              } else {
+                  color = '#ef4444'; // RED: Not fully complete (failed)
+              }
+          }
+          days.push({ date: d, ...stats, color });
       }
       return days;
   };
@@ -554,9 +586,110 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     setEditingMission(null);
     setShowDeleteConfirm(false);
   };
-  const handleLockIn = () => { setShowManifestReview(false); confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] }); setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000); };
-  const toggleCompleted = async (mission) => { const newCompleted = !mission.completed; const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCompleted && !mission.completed) { const goal = myGoals.find(g => g.id === mission.goal_id); const color = goal ? goal.color : '#cbd5e1'; const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); if (allDone) { fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); } };
-  const toggleCrushed = async (mission) => { const newCrushed = !mission.crushed; const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed }; const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m); const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed); if (newCrushed) { if (allDone) { const fireworks = new Fireworks(fireworksRef.current, { autoresize: true, opacity: 0.5, acceleration: 1.05, friction: 0.97, gravity: 1.5, particles: 50, traceLength: 3, traceSpeed: 10, explosion: 5, intensity: 30, flickering: 50, lineStyle: 'round', hue: { min: 0, max: 360 }, delay: { min: 30, max: 60 }, rocketsPoint: { min: 50, max: 50 }, lineWidth: { explosion: { min: 1, max: 3 }, trace: { min: 1, max: 2 } }, brightness: { min: 50, max: 80 }, decay: { min: 0.015, max: 0.03 }, mouse: { click: false, move: false, max: 1 } }); fireworks.start(); setTimeout(() => { fireworks.waitStop(true); }, 5000); } else { confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 }); } } const { error } = await supabase.from('missions').update(updates).eq('id', mission.id); if (!error) { setMyMissions(nextMissions); if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]); else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id)); } };
+  const handleLockIn = () => {
+    setShowManifestReview(false);
+    setContractSigned(true); // Sign the contract
+    confetti({ particleCount: 150, spread: 100, origin: { y: 0.8 }, colors: ['#c084fc', '#ffffff'] });
+    setTimeout(() => { setMode('morning'); window.scrollTo(0,0); }, 1000);
+  };
+
+  // --- ROCKET FIREWORKS FUNCTION ---
+  const launchRocketFireworks = () => {
+    // Play launch sound
+    if (launchAudioRef.current) {
+      launchAudioRef.current.currentTime = 0;
+      launchAudioRef.current.play().catch(() => {});
+    }
+
+    // Rocket shooting UP from bottom
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const launchRocket = () => {
+      // Launch rockets from bottom
+      confetti({
+        particleCount: 3,
+        angle: 90,
+        spread: 20,
+        startVelocity: 80,
+        origin: { x: Math.random() * 0.4 + 0.3, y: 1 },
+        colors: ['#ff0000', '#ffa500', '#ffff00'],
+        ticks: 200,
+        gravity: 0.8,
+        scalar: 1.2,
+        drift: 0
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(launchRocket);
+      }
+    };
+
+    launchRocket();
+
+    // Delayed explosion bursts with boom sound
+    setTimeout(() => {
+      if (boomAudioRef.current) {
+        boomAudioRef.current.currentTime = 0;
+        boomAudioRef.current.play().catch(() => {});
+      }
+      // Multiple explosion bursts
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#ffffff'];
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          confetti({
+            particleCount: 100,
+            spread: 360,
+            startVelocity: 45,
+            origin: { x: 0.2 + Math.random() * 0.6, y: 0.3 + Math.random() * 0.3 },
+            colors: colors,
+            ticks: 300,
+            gravity: 1,
+            scalar: 1.5,
+            shapes: ['circle', 'square']
+          });
+        }, i * 300);
+      }
+    }, 800);
+  };
+  const toggleCompleted = async (mission) => {
+    const newCompleted = !mission.completed;
+    const updates = { completed: newCompleted, crushed: newCompleted ? mission.crushed : false };
+    const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m);
+    const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed);
+    if (newCompleted && !mission.completed) {
+      const goal = myGoals.find(g => g.id === mission.goal_id);
+      const color = goal ? goal.color : '#cbd5e1';
+      if (allDone) {
+        // 100% complete - launch rocket fireworks with sound!
+        launchRocketFireworks();
+      } else {
+        confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 });
+      }
+    }
+    const { error } = await supabase.from('missions').update(updates).eq('id', mission.id);
+    if (!error) { setMyMissions(nextMissions); }
+  };
+  const toggleCrushed = async (mission) => {
+    const newCrushed = !mission.crushed;
+    const updates = { crushed: newCrushed, completed: newCrushed ? true : mission.completed };
+    const nextMissions = myMissions.map(m => m.id === mission.id ? { ...m, ...updates } : m);
+    const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed);
+    if (newCrushed) {
+      if (allDone) {
+        // 100% complete - launch rocket fireworks with sound!
+        launchRocketFireworks();
+      } else {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 });
+      }
+    }
+    const { error } = await supabase.from('missions').update(updates).eq('id', mission.id);
+    if (!error) {
+      setMyMissions(nextMissions);
+      if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]);
+      else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id));
+    }
+  };
   const handleDraftChange = (id, text) => { setTempVictoryNotes({ ...tempVictoryNotes, [id]: text }); };
   const handleNoteSave = async (id) => { const note = tempVictoryNotes[id]; if (!note || !note.trim()) return; const { error } = await supabase.from('missions').update({ victory_note: note }).eq('id', id); if (!error) { setMyMissions(myMissions.map(m => m.id === id ? { ...m, victory_note: note } : m)); setCrushedHistory(crushedHistory.map(m => m.id === id ? { ...m, victory_note: note } : m)); showNotification("Victory Locked In.", "success"); } };
   const deleteMission = async (id) => { const { error } = await supabase.from('missions').delete().eq('id', id); if (!error) setMyMissions(myMissions.filter(m => m.id !== id)); };
@@ -685,6 +818,10 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     <div style={mode === 'night' ? nightStyle : morningStyle}>
        <style>{globalStyles}</style>
        <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
+
+       {/* AUDIO ELEMENTS FOR FIREWORKS */}
+       <audio ref={launchAudioRef} src="/launch.mp3" preload="auto" />
+       <audio ref={boomAudioRef} src="/boom.mp3" preload="auto" />
        
        {/* --- NOTIFICATION TOAST --- */}
        {notification && ( <div style={{ position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
@@ -695,14 +832,29 @@ function VisionBoard({ session, onOpenSystemGuide }) {
                <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '90%', maxWidth: '340px', border: '1px solid #334155' }}>
                    <h3 style={{ color: 'white', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Calendar size={20} /> History Log</h3>
                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginTop: '20px' }}>
-                       {['S','M','T','W','T','F','S'].map(d => <span key={d} style={{ color: '#94a3b8', fontSize: '10px', textAlign: 'center' }}>{d}</span>)}
+                       {['S','M','T','W','T','F','S'].map((d, idx) => <span key={idx} style={{ color: '#94a3b8', fontSize: '10px', textAlign: 'center' }}>{d}</span>)}
                        {getHistoryDays().map((d, i) => (
-                           <div key={i} style={{ height: '30px', borderRadius: '8px', background: d.total === 0 ? '#334155' : (d.completed + d.crushed === d.total ? '#10b981' : (d.completed + d.crushed > 0 ? '#f59e0b' : '#ef4444')), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', color: 'white' }}>
+                           <div key={i} style={{ height: '30px', borderRadius: '8px', background: d.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', color: 'white', boxShadow: d.color === '#fbbf24' ? '0 0 10px rgba(251,191,36,0.5)' : 'none' }}>
                                {d.date.getDate()}
                            </div>
                        ))}
                    </div>
-                   <button onClick={() => setHistoryModal(false)} style={{ width: '100%', padding: '12px', marginTop: '20px', borderRadius: '16px', background: 'transparent', border: '1px solid #475569', color: '#cbd5e1' }}>Close</button>
+                   {/* LEGEND */}
+                   <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #334155' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                           <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#ef4444' }}></div>
+                           <span style={{ fontSize: '10px', color: '#94a3b8' }}>Failed</span>
+                       </div>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                           <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#10b981' }}></div>
+                           <span style={{ fontSize: '10px', color: '#94a3b8' }}>Complete</span>
+                       </div>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                           <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: '#fbbf24', boxShadow: '0 0 6px rgba(251,191,36,0.5)' }}></div>
+                           <span style={{ fontSize: '10px', color: '#94a3b8' }}>Crushed</span>
+                       </div>
+                   </div>
+                   <button onClick={() => setHistoryModal(false)} style={{ width: '100%', padding: '12px', marginTop: '16px', borderRadius: '16px', background: 'transparent', border: '1px solid #475569', color: '#cbd5e1', cursor: 'pointer' }}>Close</button>
                </div>
            </div>
        )}
