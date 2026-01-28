@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from './supabaseClient';
-import { Target, Plus, X, Lock, Unlock, GripVertical, ChevronRight, Trash2, Save, AlertCircle, Image as ImageIcon, Settings } from 'lucide-react';
+import { Target, Plus, X, Lock, Unlock, GripVertical, ChevronRight, Trash2, Save, AlertCircle, Image as ImageIcon, Settings, Rocket, HelpCircle } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -174,7 +174,10 @@ export default function NightMode({
   fileInputRef,
   handleCapture,
   clearMedia,
-  fetchAllData
+  fetchAllData,
+  onOpenSystemGuide,
+  onExecuteProtocol,
+  activeMissions: activeMissionsProp
 }) {
   // --- LOCAL STATE ---
   const [activeZone, setActiveZone] = useState(null);
@@ -208,7 +211,7 @@ export default function NightMode({
   );
 
   // --- COMPUTED ---
-  const activeMissions = myMissions.filter(m => !m.completed && !m.crushed);
+  const activeMissions = activeMissionsProp || myMissions.filter(m => !m.completed && !m.crushed);
 
   const getZoneStats = (goalId) => {
     const missionCount = myMissions.filter(m => m.goal_id === goalId && !m.completed && !m.crushed).length;
@@ -891,6 +894,59 @@ export default function NightMode({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* EXECUTE PROTOCOL BUTTON */}
+      {activeMissions.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <button
+            onClick={onExecuteProtocol}
+            style={{
+              width: '100%',
+              padding: '20px',
+              borderRadius: '20px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+              color: 'white',
+              fontWeight: '900',
+              fontSize: '16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onMouseEnter={(e) => { e.target.style.transform = 'scale(1.02)'; e.target.style.boxShadow = '0 6px 30px rgba(168, 85, 247, 0.6)'; }}
+            onMouseLeave={(e) => { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 20px rgba(168, 85, 247, 0.4)'; }}
+          >
+            <Rocket size={22} /> EXECUTE PROTOCOL
+          </button>
+        </div>
+      )}
+
+      {/* HOW IT WORKS LINK */}
+      {onOpenSystemGuide && (
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <button
+            onClick={onOpenSystemGuide}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#64748b',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              margin: '0 auto'
+            }}
+          >
+            <HelpCircle size={14} /> HOW IT WORKS
+          </button>
         </div>
       )}
     </div>

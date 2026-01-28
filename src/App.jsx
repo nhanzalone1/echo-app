@@ -192,7 +192,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [cheerModal, setCheerModal] = useState({ isOpen: false, missionId: null });
   const [cheerInput, setCheerInput] = useState('');
   const [historyModal, setHistoryModal] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [historyData, setHistoryData] = useState([]);
   
   // --- NEW STATES FOR TRIALS 3-5 ---
@@ -339,13 +338,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         newMode = 'night';
       }
 
-      // GATEKEEPER: Only switch to night mode if contract is signed
-      // If it's night time but contract isn't signed, stay in morning mode
-      if (newMode === 'night' && !contractSigned && mode === 'morning') {
-        // Don't auto-switch, keep showing morning/contract view
-        return;
-      }
-
       // Detect Morning -> Night transition for auto-archive
       if (previousModeRef.current === 'morning' && newMode === 'night') {
         autoArchiveMissions();
@@ -358,6 +350,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
       previousModeRef.current = newMode;
 
+      // Always update the mode based on time (gatekeeper view handled in render)
       if (mode !== newMode) {
         setMode(newMode);
       }
@@ -595,62 +588,53 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
   // --- ROCKET FIREWORKS FUNCTION ---
   const launchRocketFireworks = () => {
-    // Play launch sound
+    // Step 1: Play launch sound IMMEDIATELY
     if (launchAudioRef.current) {
       launchAudioRef.current.currentTime = 0;
       launchAudioRef.current.play().catch(() => {});
     }
 
-    // Rocket shooting UP from bottom
-    const duration = 3000;
-    const end = Date.now() + duration;
-
-    const launchRocket = () => {
-      // Launch rockets from bottom
-      confetti({
-        particleCount: 3,
-        angle: 90,
-        spread: 20,
-        startVelocity: 80,
-        origin: { x: Math.random() * 0.4 + 0.3, y: 1 },
-        colors: ['#ff0000', '#ffa500', '#ffff00'],
-        ticks: 200,
-        gravity: 0.8,
-        scalar: 1.2,
-        drift: 0
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(launchRocket);
-      }
-    };
-
-    launchRocket();
-
-    // Delayed explosion bursts with boom sound
+    // Step 2: After 1.5 second delay, play boom and trigger explosion
     setTimeout(() => {
+      // Play boom sound
       if (boomAudioRef.current) {
         boomAudioRef.current.currentTime = 0;
         boomAudioRef.current.play().catch(() => {});
       }
-      // Multiple explosion bursts
-      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#ffffff'];
-      for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-          confetti({
-            particleCount: 100,
-            spread: 360,
-            startVelocity: 45,
-            origin: { x: 0.2 + Math.random() * 0.6, y: 0.3 + Math.random() * 0.3 },
-            colors: colors,
-            ticks: 300,
-            gravity: 1,
-            scalar: 1.5,
-            shapes: ['circle', 'square']
-          });
-        }, i * 300);
-      }
-    }, 800);
+
+      // Trigger confetti burst - shooting UP from bottom and exploding outward
+      const colors = ['#ff0000', '#ffa500', '#ffff00', '#00ff00', '#00ffff', '#0066ff', '#ff00ff', '#ffffff'];
+
+      // Main explosion burst
+      confetti({
+        particleCount: 150,
+        spread: 360,
+        startVelocity: 55,
+        origin: { y: 1 },
+        colors: colors,
+        ticks: 400,
+        gravity: 0.8,
+        scalar: 1.2
+      });
+
+      // Secondary bursts for more impact
+      setTimeout(() => {
+        confetti({
+          particleCount: 100,
+          spread: 360,
+          startVelocity: 45,
+          origin: { x: 0.3, y: 0.6 },
+          colors: colors
+        });
+        confetti({
+          particleCount: 100,
+          spread: 360,
+          startVelocity: 45,
+          origin: { x: 0.7, y: 0.6 },
+          colors: colors
+        });
+      }, 200);
+    }, 1500);
   };
   const toggleCompleted = async (mission) => {
     const newCompleted = !mission.completed;
@@ -859,76 +843,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
            </div>
        )}
 
-      {/* --- CONTEXT-AWARE SYSTEM MANUAL --- */}
-      {showGuide && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 20000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
-          <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', border: '1px solid #475569', color: 'white' }}>
-            
-            {/* HEADER */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', color: mode === 'night' ? '#c084fc' : '#f59e0b' }}>
-                <HelpCircle size={24} /> {mode === 'night' ? 'NIGHT OPS: STRATEGY' : 'DAY OPS: EXECUTION'}
-              </h3>
-              <button onClick={() => setShowGuide(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><X size={24} /></button>
-            </div>
-            
-            {/* NIGHT MODE CONTENT */}
-            {mode === 'night' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '25px' }}>
-                <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>1. The War Room</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    This is your strategic hub. Tap a <b>Zone Tile</b> to open its planning sheet.
-                  </p>
-                </div>
-                <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>2. Mission vs Vision</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Inside the sheet, toggle between <b>MISSION</b> (daily tasks) and <b>VISION</b> (uploads & goals). Use "Enter" to rapid-fire tasks.
-                  </p>
-                </div>
-                <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>3. Initiate Protocol</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Once your zones are ready, hit the big purple button to review your <b>Manifest</b> and lock in the day.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* MORNING MODE CONTENT */}
-            {mode === 'morning' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '25px' }}>
-                <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>1. The Standard</h4>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                     <div style={{ flex: 1, background: '#f0fdf4', padding: '8px', borderRadius: '8px', color: '#166534', fontSize: '11px', fontWeight: 'bold', textAlign: 'center' }}>
-                        <CheckSquare size={14} style={{ display: 'block', margin: '0 auto 4px auto' }} /> COMPLETE
-                     </div>
-                     <div style={{ flex: 1, background: '#fffbeb', padding: '8px', borderRadius: '8px', color: '#b45309', fontSize: '11px', fontWeight: 'bold', textAlign: 'center', border: '1px solid #fcd34d' }}>
-                        <Flame size={14} style={{ display: 'block', margin: '0 auto 4px auto' }} /> CRUSHED
-                     </div>
-                  </div>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Use "Crushed" when you exceed expectations. You will be asked to leave a "Victory Note" as proof.
-                  </p>
-                </div>
-                <div>
-                  <h4 style={{ margin: '0 0 5px 0', color: 'white', fontSize: '16px' }}>2. Recruit an Ally</h4>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4' }}>
-                    Go to the <b>Ally Tab</b> <Users size={12} /> to invite a partner via email. Once linked, you can see their Missions and send "Boosts" to keep them accountable.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <button onClick={() => setShowGuide(false)} style={{ width: '100%', padding: '14px', borderRadius: '16px', border: 'none', background: mode === 'night' ? '#c084fc' : '#3b82f6', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
-              UNDERSTOOD
-            </button>
-          </div>
-        </div>
-      )}
-
        {/* ... (Previous Modals for Delete/Cheer/Protocol/Partner) ... */}
        {deleteModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '24px', borderRadius: '24px', width: '85%', maxWidth: '300px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}> <h3 style={{ margin: '0 0 16px 0', color: 'white', fontSize: '18px' }}>{deleteModal.title}</h3> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setDeleteModal({ isOpen: false, type: null, id: null, title: '' })} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={executeDelete} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Delete</button> </div> </div> </div> )}
        {/* (OLD PROTOCOL MODAL REMOVED - REPLACED BY MANIFEST REVIEW) */}
@@ -1030,8 +944,46 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         </div>
 
         {/* --- MODULAR NIGHT MODE LAYOUT (THE HUB) --- */}
-        {/* --- MODULAR NIGHT MODE LAYOUT (THE HUB) --- */}
-        {mode === 'night' && (
+        {mode === 'night' && !contractSigned && (
+          /* CONTRACT SIGNING VIEW - Gatekeeper */
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ background: 'rgba(192, 132, 252, 0.1)', padding: '30px', borderRadius: '24px', border: '2px solid #c084fc', maxWidth: '340px', width: '100%' }}>
+              <Fingerprint size={64} color="#c084fc" style={{ marginBottom: '20px' }} />
+              <h2 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '24px', fontWeight: '900' }}>SIGN THE CONTRACT</h2>
+              <p style={{ margin: '0 0 25px 0', color: '#a78bfa', fontSize: '14px', lineHeight: '1.5' }}>
+                Before entering Night Mode, confirm your commitment to tomorrow's protocol.
+              </p>
+              <div style={{ background: '#1e1b4b', padding: '20px', borderRadius: '16px', marginBottom: '25px' }}>
+                <p style={{ margin: 0, color: '#e9d5ff', fontSize: '13px', fontStyle: 'italic' }}>
+                  "I commit to executing my missions with intention and discipline."
+                </p>
+              </div>
+              <button
+                onClick={() => setContractSigned(true)}
+                style={{
+                  width: '100%',
+                  padding: '18px',
+                  borderRadius: '16px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #c084fc 0%, #a855f7 100%)',
+                  color: 'white',
+                  fontWeight: '900',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: '0 4px 20px rgba(168, 85, 247, 0.4)'
+                }}
+              >
+                <ShieldCheck size={20} /> SIGN & ENTER
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'night' && contractSigned && (
           <NightMode
             session={session}
             myGoals={myGoals}
@@ -1054,6 +1006,9 @@ function VisionBoard({ session, onOpenSystemGuide }) {
             handleCapture={handleCapture}
             clearMedia={clearMedia}
             fetchAllData={fetchAllData}
+            onOpenSystemGuide={onOpenSystemGuide}
+            onExecuteProtocol={() => setShowManifestReview(true)}
+            activeMissions={activeMissions}
           />
         )}
 
