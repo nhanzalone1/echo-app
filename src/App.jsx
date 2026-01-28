@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText, Clock, Rocket } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Fireworks } from 'fireworks-js';
 import { Reorder, useDragControls } from "framer-motion";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -13,6 +12,7 @@ import NightModeBriefing from './NightModeBriefing';
 import MorningModeBriefing from './MorningModeBriefing';
 import ScheduleSettings from './ScheduleSettings';
 import NightMode from './NightMode';
+import FireworksOverlay from './FireworksOverlay';
 
 // --- IMPORT THE TRIBUTE IMAGE DIRECTLY ---
 import tributeImage from './tribute.png'; 
@@ -223,9 +223,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   // --- DEV OVERRIDE REF (Prevents time-checker from fighting manual toggles) ---
   const devOverrideRef = useRef(false);
 
-  // --- AUDIO REFS FOR FIREWORKS ---
-  const launchAudioRef = useRef(null);
-  const boomAudioRef = useRef(null);
+  // --- FIREWORKS OVERLAY STATE (100% Completion Celebration) ---
+  const [showFireworks, setShowFireworks] = useState(false);
 
   // --- SECRET PORTAL (Triple Click) ---
   const [secretFlash, setSecretFlash] = useState(false);
@@ -313,7 +312,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const avatarInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
-  const fireworksRef = useRef(null); 
 
   const [mediaFile, setMediaFile] = useState(null); 
   const [audioBlob, setAudioBlob] = useState(null); 
@@ -680,55 +678,15 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   // Keep old function for backwards compatibility (in case it's called elsewhere)
   const handleLockIn = handleInitiateProtocol;
 
-  // --- ROCKET FIREWORKS FUNCTION ---
+  // --- ROCKET FIREWORKS FUNCTION (100% Day Complete Celebration) ---
+  // App.jsx only handles mounting the component - FireworksOverlay handles its own audio
   const launchRocketFireworks = () => {
-    // Step 1: Play launch sound IMMEDIATELY
-    if (launchAudioRef.current) {
-      launchAudioRef.current.currentTime = 0;
-      launchAudioRef.current.play().catch(() => {});
-    }
+    setShowFireworks(true);
+  };
 
-    // Step 2: After 1.5 second delay, play boom and trigger explosion
-    setTimeout(() => {
-      // Play boom sound
-      if (boomAudioRef.current) {
-        boomAudioRef.current.currentTime = 0;
-        boomAudioRef.current.play().catch(() => {});
-      }
-
-      // Trigger confetti burst - shooting UP from bottom and exploding outward
-      const colors = ['#ff0000', '#ffa500', '#ffff00', '#00ff00', '#00ffff', '#0066ff', '#ff00ff', '#ffffff'];
-
-      // Main explosion burst
-      confetti({
-        particleCount: 150,
-        spread: 360,
-        startVelocity: 55,
-        origin: { y: 1 },
-        colors: colors,
-        ticks: 400,
-        gravity: 0.8,
-        scalar: 1.2
-      });
-
-      // Secondary bursts for more impact
-      setTimeout(() => {
-        confetti({
-          particleCount: 100,
-          spread: 360,
-          startVelocity: 45,
-          origin: { x: 0.3, y: 0.6 },
-          colors: colors
-        });
-        confetti({
-          particleCount: 100,
-          spread: 360,
-          startVelocity: 45,
-          origin: { x: 0.7, y: 0.6 },
-          colors: colors
-        });
-      }, 200);
-    }, 1500);
+  // Callback when fireworks complete
+  const handleFireworksComplete = () => {
+    setShowFireworks(false);
   };
   const toggleCompleted = async (mission) => {
     const newCompleted = !mission.completed;
@@ -893,13 +851,16 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   };
 
   return (
-    <div style={mode === 'night' ? nightStyle : morningStyle}>
-       <style>{globalStyles}</style>
-       <div ref={fireworksRef} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}></div>
+    <>
+      {/* FIREWORKS OVERLAY - Silent, visual-only celebration */}
+      <FireworksOverlay
+        isActive={showFireworks}
+        onComplete={handleFireworksComplete}
+        duration={7000}
+      />
 
-       {/* AUDIO ELEMENTS FOR FIREWORKS */}
-       <audio ref={launchAudioRef} src="/launch.mp3" preload="auto" />
-       <audio ref={boomAudioRef} src="/boom.mp3" preload="auto" />
+      <div style={mode === 'night' ? nightStyle : morningStyle}>
+        <style>{globalStyles}</style>
        
        {/* --- NOTIFICATION TOAST --- */}
        {notification && ( <div style={{ position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
@@ -1420,6 +1381,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
