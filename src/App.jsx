@@ -679,7 +679,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const handleLockIn = handleInitiateProtocol;
 
   // --- ROCKET FIREWORKS FUNCTION (100% Day Complete Celebration) ---
-  // App.jsx only handles mounting the component - FireworksOverlay handles its own audio
+  // Silent visual celebration - mounts FireworksOverlay component
   const launchRocketFireworks = () => {
     setShowFireworks(true);
   };
@@ -697,7 +697,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       const goal = myGoals.find(g => g.id === mission.goal_id);
       const color = goal ? goal.color : '#cbd5e1';
       if (allDone) {
-        // 100% complete - launch rocket fireworks with sound!
+        // 100% complete - launch fireworks celebration
         launchRocketFireworks();
       } else {
         confetti({ particleCount: 30, spread: 40, origin: { y: 0.7 }, colors: [color], scalar: 0.8 });
@@ -713,7 +713,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     const allDone = nextMissions.length > 0 && nextMissions.every(m => m.completed || m.crushed);
     if (newCrushed) {
       if (allDone) {
-        // 100% complete - launch rocket fireworks with sound!
+        // 100% complete - launch fireworks celebration
         launchRocketFireworks();
       } else {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.7 }, colors: ['#f59e0b', '#fbbf24', '#ffffff'], scalar: 1.2 });
@@ -852,13 +852,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
   return (
     <>
-      {/* FIREWORKS OVERLAY - Silent, visual-only celebration */}
-      <FireworksOverlay
-        isActive={showFireworks}
-        onComplete={handleFireworksComplete}
-        duration={7000}
-      />
-
       <div style={mode === 'night' ? nightStyle : morningStyle}>
         <style>{globalStyles}</style>
        
@@ -1382,6 +1375,12 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         </div>
       )}
       </div>
+
+      {/* FIREWORKS OVERLAY - Rendered last to sit on top of all UI */}
+      <FireworksOverlay
+        isActive={showFireworks}
+        onComplete={handleFireworksComplete}
+      />
     </>
   );
 }
