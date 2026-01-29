@@ -373,21 +373,31 @@ export default function NightMode({
   };
 
   const deleteZone = async () => {
-    if (!activeZone) return;
-
-    // Delete the goal (missions will remain but become orphaned with goal_id pointing to deleted goal)
-    const { error } = await supabase.from('goals').delete().eq('id', activeZone.id);
-
-    if (!error) {
-      // Also delete associated missions or set their goal_id to null
-      await supabase.from('missions').update({ goal_id: null }).eq('goal_id', activeZone.id);
-
-      setMyGoals(myGoals.filter(g => g.id !== activeZone.id));
-      setMyMissions(myMissions.map(m => m.goal_id === activeZone.id ? { ...m, goal_id: null } : m));
-      setActiveZone(null);
-      setIsEditingZone(false);
-      setShowZoneDeleteConfirm(false);
+    if (!activeZone || activeZone.id === null) {
+      console.error('Cannot delete zone: no valid zone selected');
+      return;
     }
+
+    const zoneId = activeZone.id;
+
+    // First update missions to remove the goal_id reference
+    await supabase.from('missions').update({ goal_id: null }).eq('goal_id', zoneId);
+
+    // Delete the goal
+    const { error } = await supabase.from('goals').delete().eq('id', zoneId);
+
+    if (error) {
+      console.error('Failed to delete zone:', error);
+      setDebugLog(`Error deleting zone: ${error.message}`);
+      return;
+    }
+
+    // Update local state
+    setMyGoals(myGoals.filter(g => g.id !== zoneId));
+    setMyMissions(myMissions.map(m => m.goal_id === zoneId ? { ...m, goal_id: null } : m));
+    setActiveZone(null);
+    setIsEditingZone(false);
+    setShowZoneDeleteConfirm(false);
   };
 
   // Sort goals by position for display
