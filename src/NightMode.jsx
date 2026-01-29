@@ -979,28 +979,6 @@ export default function NightMode({
         </div>
       )}
 
-      {/* HOW IT WORKS LINK */}
-      {onOpenSystemGuide && (
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <button
-            onClick={() => onOpenSystemGuide('night')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#64748b',
-              fontSize: '12px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              margin: '0 auto'
-            }}
-          >
-            <HelpCircle size={14} /> HOW IT WORKS
-          </button>
-        </div>
-      )}
     </div>
   );
 }

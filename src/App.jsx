@@ -1065,12 +1065,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
               )}
           </div>
 
-          {/* --- TOP RIGHT: ALLY & HELP --- */}
+          {/* --- TOP RIGHT: ALLY --- */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button onClick={() => onOpenSystemGuide(mode)} style={{ border: 'none', background: 'transparent', padding: '8px 12px', cursor: 'pointer', fontSize: '10px', fontWeight: '600', letterSpacing: '1px', color: mode === 'night' ? '#64748b' : '#94a3b8' }}>
-                HOW IT WORKS
-              </button>
-              
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> 
                   <Users size={20} color={mode === 'night' ? 'white' : 'black'} /> 
@@ -1316,23 +1312,6 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
        {/* --- SYSTEM STATUS INDICATOR --- */}
         <div style={{ marginTop: '30px', paddingBottom: '20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <button
-            onClick={onOpenSystemGuide}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: mode === 'night' ? '#666' : '#94a3b8',
-              fontSize: '11px',
-              letterSpacing: '2px',
-              cursor: 'pointer',
-              padding: '8px 16px',
-              transition: 'color 0.2s'
-            }}
-            onMouseEnter={(e) => e.target.style.color = mode === 'night' ? '#fff' : '#64748b'}
-            onMouseLeave={(e) => e.target.style.color = mode === 'night' ? '#666' : '#94a3b8'}
-          >
-            SYSTEM GUIDE
-          </button>
           <div
             onClick={handleSecretPortal}
             style={{
