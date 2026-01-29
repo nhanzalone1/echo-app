@@ -507,9 +507,10 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           setMyMissions(myHistory.filter(i => i.is_active));
 
           // --- ALLY VIEW DATE FILTER: Only show today's missions ---
+          // TIMEZONE-PROOF: setHours(0,0,0,0) uses LOCAL midnight, not UTC
+          // So a mission created at 11:59 PM EST counts for that local day
           const startOfToday = new Date();
           startOfToday.setHours(0, 0, 0, 0);
-          const todayISO = startOfToday.toISOString();
           setPartnerMissions(mData.filter(i =>
             i.user_id !== session.user.id &&
             i.is_active &&
@@ -562,10 +563,11 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       } catch (error) { showNotification(error.message, "error"); } finally { setUploading(false); }
   };
 
+  // TIMEZONE-PROOF: Groups missions by LOCAL date (not UTC)
   const getHistoryDays = () => {
       const grouped = {};
       historyData.forEach(m => {
-          const date = new Date(m.created_at).toDateString();
+          const date = new Date(m.created_at).toDateString(); // Converts to local date
           if(!grouped[date]) grouped[date] = { total: 0, completed: 0, crushed: 0 };
           grouped[date].total++;
           if(m.completed) grouped[date].completed++;
@@ -824,6 +826,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       setUploading(false);
     }
   };
+  // TIMEZONE-PROOF: toDateString() converts UTC timestamps to LOCAL date strings
+  // e.g., "2025-01-29T04:59:00Z" (UTC) → "Tue Jan 28 2025" (EST user's local time)
   function calculateStreak(data) { if (!data || data.length === 0) { setStreak(0); return; } const uniqueDates = [...new Set(data.map(item => new Date(item.created_at).toDateString()))]; const sortedDates = uniqueDates.map(d => new Date(d)).sort((a, b) => b - a); const today = new Date().toDateString(); const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); if (sortedDates[0].toDateString() !== today && sortedDates[0].toDateString() !== yesterday.toDateString()) { setStreak(0); return; } let currentStreak = 0; let checkDate = new Date(); if (sortedDates[0].toDateString() !== today) checkDate.setDate(checkDate.getDate() - 1); for (let i = 0; i < sortedDates.length; i++) { if (sortedDates[i].toDateString() === checkDate.toDateString()) { currentStreak++; checkDate.setDate(checkDate.getDate() - 1); } else break; } setStreak(currentStreak); }
   const deleteThought = async (id) => { const { error } = await supabase.from('thoughts').delete().eq('id', id); if (!error) { const newThoughts = myThoughts.filter(t => t.id !== id); setMyThoughts(newThoughts); calculateStreak(newThoughts); } };
   const toggleIgnite = async (id, currentStatus) => { if (!currentStatus) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: mode === 'night' ? ['#c084fc', '#a855f7', '#ffffff'] : ['#fbbf24', '#f59e0b', '#ef4444'] }); const { error } = await supabase.from('thoughts').update({ ignited: !currentStatus }).eq('id', id); if (!error) setMyThoughts(myThoughts.map(t => t.id === id ? { ...t, ignited: !t.ignited } : t)); };
