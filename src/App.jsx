@@ -1065,8 +1065,27 @@ function VisionBoard({ session, onOpenSystemGuide }) {
               )}
           </div>
 
-          {/* --- TOP RIGHT: ALLY --- */}
+          {/* --- TOP RIGHT: HELP & ALLY --- */}
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                onClick={() => onOpenSystemGuide(mode)}
+                style={{
+                  border: 'none',
+                  background: mode === 'night' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                  borderRadius: '20px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  letterSpacing: '0.5px',
+                  color: mode === 'night' ? '#a78bfa' : '#7c3aed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <HelpCircle size={14} /> How It Works
+              </button>
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> 
                   <Users size={20} color={mode === 'night' ? 'white' : 'black'} /> 

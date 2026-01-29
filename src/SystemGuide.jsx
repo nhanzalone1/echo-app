@@ -1,58 +1,114 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, LayoutGrid, Mountain, Target, FileSignature, CheckCircle, Eye, Users, Calendar } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Folder, Image, ListTodo, Rocket, CheckSquare, Eye, Users, Flame, Trophy, X } from 'lucide-react';
 
-// Night Mode Slides (The Architect)
+// Night Mode Slides (Planning Phase)
 const nightSlides = [
   {
-    icon: LayoutGrid,
-    title: 'THE ZONES',
-    subtitle: 'Your life is divided into Zones. These are the buckets where you want to win.',
+    icon: Folder,
+    emoji: '1️⃣',
+    title: 'CREATE YOUR ZONES',
+    subtitle: 'Zones are the big areas of your life you want to win in.',
+    steps: [
+      'Tap the + button to create a Zone',
+      'Name it something meaningful (Fitness, Career, etc.)',
+      'Pick a color to represent it'
+    ],
+    example: 'Example: "Health" zone for all gym & nutrition goals',
     color: '#c084fc'
   },
   {
-    icon: Mountain,
-    title: 'THE VISION',
-    subtitle: 'Every Zone has a Vision. This is your "North Star"—the ultimate goal you are chasing.',
+    icon: Image,
+    emoji: '2️⃣',
+    title: 'SET YOUR VISION',
+    subtitle: 'Your Vision is the big picture goal for each Zone.',
+    steps: [
+      'Tap on a Zone tile',
+      'Switch to the VISION tab',
+      'Upload a photo or write your ultimate goal'
+    ],
+    example: 'Example: Photo of your goal physique or "Run a marathon"',
     color: '#a855f7'
   },
   {
-    icon: Target,
-    title: 'THE MISSION',
-    subtitle: "You can't climb the mountain in one day. Set 3-5 Missions for tomorrow to chip away at it.",
+    icon: ListTodo,
+    emoji: '3️⃣',
+    title: 'ADD TOMORROW\'S MISSIONS',
+    subtitle: 'Missions are the specific tasks you\'ll do tomorrow.',
+    steps: [
+      'Tap on a Zone tile',
+      'Stay on the MISSION tab',
+      'Add 1-3 tasks you WILL complete tomorrow'
+    ],
+    example: 'Example: "30 min cardio" or "Meal prep lunch"',
     color: '#8b5cf6'
   },
   {
-    icon: FileSignature,
-    title: 'THE CONTRACT',
-    subtitle: 'Set your Start Time and sign. Once signed, the plan is locked. No edits. Only execution.',
+    icon: Rocket,
+    emoji: '4️⃣',
+    title: 'INITIATE PROTOCOL',
+    subtitle: 'Lock in your plan. No changes after this.',
+    steps: [
+      'Review your missions at the bottom',
+      'Tap the purple INITIATE PROTOCOL button',
+      'Your plan is now sealed for tomorrow'
+    ],
+    example: 'Tip: Do this the night before so you wake up ready',
     color: '#7c3aed'
   }
 ];
 
-// Morning Mode Slides (The Operator)
+// Morning Mode Slides (Execution Phase)
 const morningSlides = [
   {
-    icon: CheckCircle,
-    title: 'THE EXECUTION',
-    subtitle: 'This is Execution Mode. Your specific tasks are laid out. Your only job is to turn them Green.',
+    icon: CheckSquare,
+    emoji: '1️⃣',
+    title: 'CHECK OFF MISSIONS',
+    subtitle: 'Your missions are displayed as cards. Execute them.',
+    steps: [
+      'See your mission cards on the dashboard',
+      'Tap the checkmark when you complete one',
+      'Watch it move to "Completed"'
+    ],
+    example: 'Goal: Turn all your cards green by end of day',
     color: '#10b981'
   },
   {
-    icon: Eye,
-    title: 'THE ALIGNMENT',
-    subtitle: 'Lost motivation? Check the Vision Tab. Remind yourself WHY you are doing these hard tasks.',
-    color: '#3b82f6'
-  },
-  {
-    icon: Users,
-    title: 'THE ALLIANCE',
-    subtitle: "Don't fight alone. Share progress with an Ally. If you win, they see it.",
+    icon: Flame,
+    emoji: '2️⃣',
+    title: 'CRUSH YOUR WINS',
+    subtitle: 'Did you go above and beyond? Mark it as CRUSHED.',
+    steps: [
+      'Complete a mission, then tap the fire icon',
+      'Add a victory note (optional)',
+      'Crushed missions glow gold on your calendar'
+    ],
+    example: 'Example: Planned 30 min run, did 45 min = CRUSHED',
     color: '#f59e0b'
   },
   {
-    icon: Calendar,
-    title: 'THE SCOREBOARD',
-    subtitle: 'Consistency is currency. Green days build the chain. Gold days build the legend.',
+    icon: Eye,
+    emoji: '3️⃣',
+    title: 'CHECK YOUR VISION',
+    subtitle: 'Need motivation? Look at why you\'re doing this.',
+    steps: [
+      'Tap the VISION tab at the top',
+      'See your goal photos and notes',
+      'Remember the bigger picture'
+    ],
+    example: 'Tip: Check this when you want to skip a mission',
+    color: '#3b82f6'
+  },
+  {
+    icon: Trophy,
+    emoji: '4️⃣',
+    title: 'BUILD YOUR STREAK',
+    subtitle: 'Consistency wins. Every completed day counts.',
+    steps: [
+      'Tap the flame counter to see your calendar',
+      'Green = completed all missions',
+      'Gold = completed + crushed at least one'
+    ],
+    example: 'Red = missed day. Keep the chain going!',
     color: '#fbbf24'
   }
 ];
@@ -63,6 +119,7 @@ export default function SystemGuide({ onClose, mode = 'night' }) {
   const slides = mode === 'night' ? nightSlides : morningSlides;
   const CurrentIcon = slides[currentSlide].icon;
   const accentColor = slides[currentSlide].color;
+  const slide = slides[currentSlide];
 
   const nextSlide = () => {
     if (currentSlide < slides.length - 1) {
@@ -86,7 +143,7 @@ export default function SystemGuide({ onClose, mode = 'night' }) {
       left: 0,
       width: '100%',
       height: '100%',
-      background: 'rgba(0, 0, 0, 0.9)',
+      background: 'rgba(0, 0, 0, 0.95)',
       backdropFilter: 'blur(16px)',
       WebkitBackdropFilter: 'blur(16px)',
       zIndex: 50000,
@@ -98,98 +155,189 @@ export default function SystemGuide({ onClose, mode = 'night' }) {
       <div style={{
         maxWidth: '380px',
         width: '100%',
-        background: 'linear-gradient(145deg, rgba(20, 20, 25, 0.95) 0%, rgba(10, 10, 12, 0.98) 100%)',
+        background: 'linear-gradient(145deg, rgba(20, 20, 25, 0.98) 0%, rgba(10, 10, 12, 1) 100%)',
         borderRadius: '28px',
-        border: `1px solid ${accentColor}33`,
+        border: `1px solid ${accentColor}40`,
         overflow: 'hidden',
-        boxShadow: `0 25px 60px -12px rgba(0, 0, 0, 0.8), 0 0 40px ${accentColor}15`
+        boxShadow: `0 25px 60px -12px rgba(0, 0, 0, 0.9), 0 0 50px ${accentColor}20`
       }}>
 
-        {/* Content Area */}
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '15px',
+            right: '15px',
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#666'
+          }}
+        >
+          <X size={16} />
+        </button>
+
+        {/* Header */}
         <div style={{
-          padding: '50px 35px',
-          textAlign: 'center',
-          minHeight: '320px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center'
+          padding: '25px 25px 15px 25px',
+          borderBottom: '1px solid #222',
+          textAlign: 'center'
         }}>
-          {/* Mode Badge */}
           <div style={{
             fontSize: '10px',
             color: accentColor,
             letterSpacing: '3px',
-            marginBottom: '25px',
             textTransform: 'uppercase',
-            fontWeight: '700'
+            fontWeight: '700',
+            marginBottom: '8px'
           }}>
-            {isNight ? '🌙 THE ARCHITECT' : '☀️ THE OPERATOR'}
+            {isNight ? '🌙 NIGHT MODE' : '☀️ MORNING MODE'}
           </div>
+          <div style={{
+            fontSize: '12px',
+            color: '#64748b',
+            letterSpacing: '1px'
+          }}>
+            {isNight ? 'PLANNING PHASE' : 'EXECUTION PHASE'}
+          </div>
+        </div>
 
+        {/* Breadcrumb Trail */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '8px',
+          padding: '15px 20px',
+          background: 'rgba(0,0,0,0.3)'
+        }}>
+          {slides.map((s, index) => (
+            <div
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '4px 10px',
+                borderRadius: '12px',
+                background: index === currentSlide ? `${accentColor}30` : 'transparent',
+                border: index === currentSlide ? `1px solid ${accentColor}50` : '1px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ fontSize: '12px' }}>{s.emoji}</span>
+              {index === currentSlide && (
+                <span style={{ fontSize: '10px', color: accentColor, fontWeight: '600' }}>
+                  STEP {index + 1}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Content Area */}
+        <div style={{
+          padding: '30px 25px',
+          textAlign: 'center'
+        }}>
           {/* Icon */}
           <div style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '24px',
-            background: `linear-gradient(135deg, ${accentColor}20 0%, ${accentColor}10 100%)`,
-            border: `2px solid ${accentColor}40`,
+            width: '70px',
+            height: '70px',
+            borderRadius: '20px',
+            background: `linear-gradient(135deg, ${accentColor}25 0%, ${accentColor}10 100%)`,
+            border: `2px solid ${accentColor}50`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '30px',
-            boxShadow: `0 0 30px ${accentColor}20`
+            margin: '0 auto 20px auto',
+            boxShadow: `0 0 30px ${accentColor}25`
           }}>
-            <CurrentIcon size={36} color={accentColor} style={{ filter: `drop-shadow(0 0 8px ${accentColor})` }} />
+            <CurrentIcon size={32} color={accentColor} style={{ filter: `drop-shadow(0 0 8px ${accentColor})` }} />
           </div>
 
           {/* Title */}
           <h1 style={{
             margin: 0,
-            fontSize: '28px',
-            fontWeight: '900',
+            fontSize: '20px',
+            fontWeight: '800',
             color: 'white',
-            letterSpacing: '3px',
-            marginBottom: '16px',
-            textTransform: 'uppercase'
+            letterSpacing: '1px',
+            marginBottom: '10px'
           }}>
-            {slides[currentSlide].title}
+            {slide.title}
           </h1>
 
           {/* Subtitle */}
           <p style={{
-            margin: 0,
-            fontSize: '15px',
+            margin: '0 0 20px 0',
+            fontSize: '14px',
             color: '#94a3b8',
-            lineHeight: '1.7',
-            maxWidth: '300px'
+            lineHeight: '1.5'
           }}>
-            {slides[currentSlide].subtitle}
+            {slide.subtitle}
           </p>
-        </div>
 
-        {/* Progress Dots */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '10px',
-          paddingBottom: '25px'
-        }}>
-          {slides.map((slide, index) => (
-            <div
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              style={{
-                width: index === currentSlide ? '28px' : '10px',
-                height: '10px',
-                borderRadius: '5px',
-                background: index === currentSlide ? accentColor : '#333',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: index === currentSlide ? `0 0 10px ${accentColor}60` : 'none'
-              }}
-            />
-          ))}
+          {/* Steps */}
+          <div style={{
+            textAlign: 'left',
+            background: 'rgba(255,255,255,0.03)',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '16px'
+          }}>
+            {slide.steps.map((step, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                marginBottom: i < slide.steps.length - 1 ? '12px' : 0
+              }}>
+                <div style={{
+                  minWidth: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: `${accentColor}30`,
+                  color: accentColor,
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {i + 1}
+                </div>
+                <span style={{
+                  fontSize: '13px',
+                  color: '#e2e8f0',
+                  lineHeight: '1.4'
+                }}>
+                  {step}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Example */}
+          <div style={{
+            fontSize: '12px',
+            color: '#64748b',
+            fontStyle: 'italic',
+            padding: '10px',
+            background: 'rgba(0,0,0,0.2)',
+            borderRadius: '10px',
+            borderLeft: `3px solid ${accentColor}50`
+          }}>
+            {slide.example}
+          </div>
         </div>
 
         {/* Navigation */}
@@ -203,19 +351,21 @@ export default function SystemGuide({ onClose, mode = 'night' }) {
             disabled={currentSlide === 0}
             style={{
               flex: 1,
-              padding: '20px',
+              padding: '18px',
               background: 'transparent',
               border: 'none',
               borderRight: '1px solid #1a1a1a',
-              color: currentSlide === 0 ? '#333' : '#666',
+              color: currentSlide === 0 ? '#333' : '#888',
               cursor: currentSlide === 0 ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color 0.2s'
+              gap: '4px',
+              fontSize: '12px',
+              fontWeight: '600'
             }}
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={16} /> BACK
           </button>
 
           {/* Next / Close Button */}
@@ -223,44 +373,41 @@ export default function SystemGuide({ onClose, mode = 'night' }) {
             <button
               onClick={onClose}
               style={{
-                flex: 3,
-                padding: '20px',
+                flex: 2,
+                padding: '18px',
                 background: `linear-gradient(135deg, ${accentColor} 0%, ${accentColor}cc 100%)`,
                 border: 'none',
                 color: 'white',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '800',
-                letterSpacing: '2px',
+                letterSpacing: '1px',
                 cursor: 'pointer',
                 textTransform: 'uppercase',
-                transition: 'all 0.2s',
                 boxShadow: `0 4px 20px ${accentColor}40`
               }}
             >
-              {isNight ? 'START PLANNING' : 'START EXECUTING'}
+              {isNight ? 'GOT IT!' : 'LET\'S GO!'}
             </button>
           ) : (
             <button
               onClick={nextSlide}
               style={{
-                flex: 3,
-                padding: '20px',
+                flex: 2,
+                padding: '18px',
                 background: 'transparent',
                 border: 'none',
                 color: 'white',
-                fontSize: '14px',
-                fontWeight: '600',
+                fontSize: '13px',
+                fontWeight: '700',
                 letterSpacing: '1px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
-                transition: 'color 0.2s'
+                gap: '6px'
               }}
             >
-              NEXT
-              <ChevronRight size={16} />
+              NEXT <ChevronRight size={16} />
             </button>
           )}
         </div>
