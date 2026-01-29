@@ -487,7 +487,7 @@ export default function NightMode({
       {/* GOAL CREATOR MODAL */}
       {showGoalCreator && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 12000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#111', padding: '25px', borderRadius: '24px', border: '1px solid #333', width: '85%', maxWidth: '320px' }}>
+          <div style={{ background: '#111', padding: '28px 40px', borderRadius: '24px', border: '1px solid #333', width: '94%', maxWidth: '420px', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
               <h4 style={{ margin: 0, fontSize: '14px', color: '#fff' }}>NEW ZONE</h4>
               <button onClick={() => setShowGoalCreator(false)} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer' }}><X size={18} /></button>
@@ -499,6 +499,60 @@ export default function NightMode({
               placeholder="Zone Name"
               style={{ width: '100%', background: '#222', border: '1px solid #444', color: 'white', padding: '12px', borderRadius: '12px', outline: 'none', marginBottom: '15px' }}
             />
+
+            {/* IIN Circle of Life Presets */}
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#64748b', letterSpacing: '1px', marginBottom: '10px' }}>OR CHOOSE A LIFE AREA:</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                {[
+                  { name: 'Creativity', color: '#9C27B0' },
+                  { name: 'Finances', color: '#2E7D32' },
+                  { name: 'Career', color: '#1565C0' },
+                  { name: 'Education', color: '#3F51B5' },
+                  { name: 'Health', color: '#D32F2F' },
+                  { name: 'Physical Activity', color: '#EF6C00' },
+                  { name: 'Home Cooking', color: '#F9A825' },
+                  { name: 'Home Environment', color: '#00695C' },
+                  { name: 'Relationships', color: '#AD1457' },
+                  { name: 'Social Life', color: '#00838F' },
+                  { name: 'Joy', color: '#FBC02D' },
+                  { name: 'Spirituality', color: '#6A1B9A' }
+                ].map(preset => (
+                  <button
+                    key={preset.name}
+                    onClick={() => {
+                      setNewGoalInput(preset.name);
+                      setNewGoalColor(preset.color);
+                    }}
+                    style={{
+                      width: '100%',
+                      minHeight: '46px',
+                      padding: '10px 6px',
+                      borderRadius: '10px',
+                      border: newGoalInput === preset.name && newGoalColor === preset.color ? '2px solid white' : '1px solid transparent',
+                      background: `${preset.color}30`,
+                      color: preset.color,
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'center',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      whiteSpace: 'normal',
+                      overflowWrap: 'break-word',
+                      wordBreak: 'normal',
+                      lineHeight: '1.2',
+                      letterSpacing: '0.2px'
+                    }}
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {goalColors.slice(0, 5).map(c => (
