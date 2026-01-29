@@ -580,9 +580,10 @@ function VisionBoard({ session, onOpenSystemGuide }) {
           const dateStr = d.toDateString();
           const stats = grouped[dateStr] || { total: 0, completed: 0, crushed: 0 };
           // Calculate color: GOLD (crushed), GREEN (100%), RED (incomplete)
+          // Note: Crushed missions are also marked completed, so we only check completed count
           let color = '#334155'; // Default: no data
           if (stats.total > 0) {
-              const allComplete = (stats.completed + stats.crushed) === stats.total;
+              const allComplete = stats.completed === stats.total;
               const hasCrushed = stats.crushed > 0;
               if (allComplete && hasCrushed) {
                   color = '#fbbf24'; // GOLD: 100% + at least one crushed
