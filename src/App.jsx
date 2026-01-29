@@ -1237,11 +1237,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
                             borderRadius: '10px',
                             backdropFilter: 'blur(4px)'
                           }}>
-                            {partnerProfile?.avatar_url ? (
-                              <img src={partnerProfile.avatar_url} alt="Partner" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.5)' }} />
-                            ) : (
-                              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>👤</div>
-                            )}
+                            <img src={partnerProfile?.avatar_url || tributeImage} alt="Partner" style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(255,255,255,0.5)', background: 'white' }} />
                             <span style={{
                               fontSize: '12px',
                               color: 'rgba(255,255,255,0.9)',
@@ -1277,11 +1273,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
                                 {/* ALLY MESSAGE - Inline Display */}
                                 {m.cheer_note && (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', padding: '6px 10px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                                    {partnerProfile?.avatar_url ? (
-                                      <img src={partnerProfile.avatar_url} alt="Partner" style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #fecaca' }} />
-                                    ) : (
-                                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>👤</div>
-                                    )}
+                                    <img src={partnerProfile?.avatar_url || tributeImage} alt="Partner" style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #fecaca', background: 'white' }} />
                                     <span style={{ fontSize: '11px', color: '#be185d', fontStyle: 'italic' }}>"{m.cheer_note}"</span>
                                   </div>
                                 )}
