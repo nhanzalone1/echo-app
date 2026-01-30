@@ -140,14 +140,20 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [modalTab, setModalTab] = useState('mission');
   const [showManifestReview, setShowManifestReview] = useState(false); // The Checkout Screen
 
-  // --- AUTO-TRIGGER MORNING MODE ONBOARDING ---
-  // Fires when user enters morning mode for the first time
+  // --- AUTO-TRIGGER ONBOARDING (Mode-Specific) ---
+  // Fires when user enters a mode for the first time
   useEffect(() => {
-    if (mode === 'morning') {
+    if (mode === 'night') {
+      const hasSeen = localStorage.getItem('relay_has_seen_night_onboarding');
+      if (!hasSeen) {
+        console.log('[ONBOARDING] Triggering Night Mode SystemGuide');
+        onOpenSystemGuide('night', true);
+      }
+    } else if (mode === 'morning') {
       const hasSeen = localStorage.getItem('relay_has_seen_morning_onboarding');
       if (!hasSeen) {
         console.log('[ONBOARDING] Triggering Morning Mode SystemGuide');
-        onOpenSystemGuide('morning', true); // true = isFirstRun
+        onOpenSystemGuide('morning', true);
       }
     }
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1053,8 +1059,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         </div>
 
         {/* --- MODULAR NIGHT MODE LAYOUT (THE HUB) --- */}
-        {mode === 'night' && !contractSigned && (
-          /* CONTRACT SIGNING VIEW - Gatekeeper */
+        {mode === 'night' && localStorage.getItem('relay_has_seen_night_onboarding') && !contractSigned && (
+          /* CONTRACT SIGNING VIEW - Gatekeeper (only after onboarding) */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', textAlign: 'center' }}>
             <div style={{ background: 'rgba(192, 132, 252, 0.1)', padding: '30px', borderRadius: '24px', border: '2px solid #c084fc', maxWidth: '340px', width: '100%' }}>
               <Fingerprint size={64} color="#c084fc" style={{ marginBottom: '20px' }} />

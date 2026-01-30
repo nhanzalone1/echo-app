@@ -201,15 +201,6 @@ export default function NightMode({
   const [editZoneColor, setEditZoneColor] = useState('');
   const [showZoneDeleteConfirm, setShowZoneDeleteConfirm] = useState(false);
 
-  // --- AUTO-TRIGGER NIGHT MODE ONBOARDING ---
-  useEffect(() => {
-    const hasSeen = localStorage.getItem('relay_has_seen_night_onboarding');
-    if (!hasSeen) {
-      console.log('[ONBOARDING] Triggering Night Mode SystemGuide');
-      onOpenSystemGuide('night', true); // true = isFirstRun
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // --- DND SENSORS ---
   const sensors = useSensors(
     useSensor(PointerSensor, {
