@@ -1138,13 +1138,12 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         zIndex: 99999,
         borderTop: '2px solid #0f0'
       }}>
-        <div style={{ color: '#ff0', fontWeight: 'bold' }}>== MANUAL INJECTION MODE ==</div>
-        <div>Global Obj: {typeof window !== 'undefined' && window.OneSignal ? 'YES' : 'NO'}</div>
-        <div>Deferred Queue: {typeof window !== 'undefined' && window.OneSignalDeferred ? 'YES' : 'NO'}</div>
-        <div>Init Complete: {oneSignalInitialized ? 'YES' : 'NO'}</div>
+        <div style={{ color: '#ff0', fontWeight: 'bold' }}>== BUILD v2.0 ==</div>
+        <div>Script Loaded: {typeof window !== 'undefined' && window.OneSignal ? 'YES' : 'NO'}</div>
+        <div>Deferred: {typeof window !== 'undefined' && window.OneSignalDeferred ? 'YES' : 'NO'}</div>
+        <div>Init: {oneSignalInitialized ? 'YES' : 'NO'}</div>
         <div>Permission: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
-        <div>Opted In: {window.OneSignal?.User?.PushSubscription?.optedIn ? 'YES' : 'NO'}</div>
-        <div>Player ID: {window.OneSignal?.User?.PushSubscription?.id || 'NULL'}</div>
+        <div>ID: {window.OneSignal?.User?.PushSubscription?.id || 'NULL'}</div>
         <div>User: {session?.user?.id?.slice(0,8) || 'NULL'}...</div>
         {initError && <div style={{ color: '#ff0000', marginTop: '4px' }}>Error: {initError}</div>}
         <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
