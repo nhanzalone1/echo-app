@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Target, Plus, X, Edit3, Trash2, Check, TrendingUp } from 'lucide-react';
+import { Target, Plus, X, Edit3, Trash2, Check, TrendingUp, Trophy } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 export default function Visions({ session, mode = 'morning' }) {
   const [visions, setVisions] = useState([]);
@@ -113,22 +114,50 @@ export default function Visions({ session, mode = 'morning' }) {
     if (!updateModal) return;
 
     const newCurrent = parseFloat(updateModal.newValue) || 0;
+    const target = updateModal.vision.metric_target || 0;
+    const start = updateModal.vision.metric_start || 0;
+    const wasCrushed = updateModal.vision.is_crushed || false;
+
+    // Check if this update completes the vision (current >= target for goals where target > start)
+    // Or current <= target for goals where target < start (e.g., weight loss: 200 -> 175)
+    const isGoalAchieved = target > start
+      ? newCurrent >= target
+      : newCurrent <= target;
+
+    const updates = {
+      metric_current: newCurrent,
+      is_crushed: isGoalAchieved
+    };
+
     const { error } = await supabase
       .from('visions')
-      .update({ metric_current: newCurrent })
+      .update(updates)
       .eq('id', updateModal.vision.id);
 
     if (!error) {
       setVisions(visions.map(v =>
-        v.id === updateModal.vision.id ? { ...v, metric_current: newCurrent } : v
+        v.id === updateModal.vision.id ? { ...v, ...updates } : v
       ));
+
+      // Celebrate if just crushed!
+      if (isGoalAchieved && !wasCrushed) {
+        confetti({
+          particleCount: 150,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ['#06b6d4', '#10b981', '#fbbf24', '#ffffff']
+        });
+      }
     }
     setUpdateModal(null);
   };
 
-  // Calculate progress percentage
+  // Calculate progress percentage (handles both ascending and descending goals)
   const calcProgress = (start, current, target) => {
-    if (target <= start) return 0;
+    // If no difference between start and target, return 0
+    if (target === start) return 0;
+
+    // Calculate progress based on direction
     const progress = ((current - start) / (target - start)) * 100;
     return Math.max(0, Math.min(100, progress));
   };
@@ -240,9 +269,9 @@ export default function Visions({ session, mode = 'morning' }) {
       {/* Vision Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {visions.map(vision => {
-          const hasMetrics = vision.metric_target > 0;
+          const hasMetrics = vision.metric_target > 0 || vision.metric_start > 0;
           const progress = hasMetrics ? calcProgress(vision.metric_start, vision.metric_current, vision.metric_target) : 0;
-          const isComplete = progress >= 100;
+          const isComplete = progress >= 100 || vision.is_crushed;
 
           return (
             <div
@@ -262,16 +291,35 @@ export default function Visions({ session, mode = 'morning' }) {
                 alignItems: 'flex-start',
                 marginBottom: hasMetrics ? '16px' : '0'
               }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: isDark ? 'white' : '#1e293b',
-                  flex: 1,
-                  lineHeight: '1.5'
-                }}>
-                  {vision.content}
-                </p>
+                <div style={{ flex: 1 }}>
+                  {isComplete && (
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      marginBottom: '8px'
+                    }}>
+                      <Trophy size={12} color="white" />
+                      <span style={{ fontSize: '10px', fontWeight: '700', color: 'white', letterSpacing: '0.5px' }}>
+                        CRUSHED
+                      </span>
+                    </div>
+                  )}
+                  <p style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: isDark ? 'white' : '#1e293b',
+                    lineHeight: '1.5',
+                    textDecoration: isComplete ? 'line-through' : 'none',
+                    opacity: isComplete ? 0.7 : 1
+                  }}>
+                    {vision.content}
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
                   <button
                     onClick={() => openEditModal(vision)}
@@ -628,13 +676,16 @@ export default function Visions({ session, mode = 'morning' }) {
           }}>
             <TrendingUp size={40} color="#06b6d4" style={{ marginBottom: '16px' }} />
             <h3 style={{ margin: '0 0 8px 0', color: 'white', fontSize: '18px' }}>Update Progress</h3>
-            <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '13px' }}>
+            <p style={{ margin: '0 0 12px 0', color: '#64748b', fontSize: '13px' }}>
               {updateModal.vision.content}
+            </p>
+            <p style={{ margin: '0 0 20px 0', color: '#06b6d4', fontSize: '12px', fontWeight: '600' }}>
+              Target: {formatSingleMetric(updateModal.vision.metric_target, updateModal.vision.metric_unit)} {updateModal.vision.metric_unit && !isPrefixUnit(updateModal.vision.metric_unit) && updateModal.vision.metric_unit !== '%' ? updateModal.vision.metric_unit : ''}
             </p>
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '11px', color: '#64748b', marginBottom: '8px' }}>
-                CURRENT VALUE ({updateModal.vision.metric_unit || 'units'})
+                ENTER CURRENT VALUE ({updateModal.vision.metric_unit || 'units'})
               </label>
               <input
                 type="number"
