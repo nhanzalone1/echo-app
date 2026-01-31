@@ -195,11 +195,15 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       // Set flag immediately to prevent race conditions
       oneSignalHasInitialized = true;
 
+      const ONESIGNAL_APP_ID = 'e1afb266-c90b-4cbd-9b8b-9bc49bc04783';
+
       try {
-        console.log('[ONESIGNAL] Starting initialization...');
+        console.log('[ONESIGNAL] Starting initialization with App ID:', ONESIGNAL_APP_ID);
         await OneSignal.init({
-          appId: "e1afb266-c90b-4cbd-9b8b-9bc49bc04783",
+          appId: ONESIGNAL_APP_ID,
           safari_web_id: "web.onesignal.auto.1afb9025-a2b0-4a54-8c00-23b218b2b39b",
+          serviceWorkerParam: { scope: '/' },
+          serviceWorkerPath: 'OneSignalSDKWorker.js',
           allowLocalhostAsSecureOrigin: true,
           notifyButton: { enable: false }
         });
@@ -244,7 +248,12 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
       } catch (error) {
         console.error('[ONESIGNAL] Init error:', error);
-        setInitError(error?.message || String(error));
+        // Capture full error details for debugging
+        try {
+          setInitError(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        } catch {
+          setInitError(error?.message || String(error));
+        }
         // Reset flag on error so it can retry
         oneSignalHasInitialized = false;
       }
@@ -1107,6 +1116,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         zIndex: 99999,
         borderTop: '2px solid #0f0'
       }}>
+        <div>App ID: e1afb... (hardcoded)</div>
         <div>OneSignal Init: {oneSignalInitialized ? 'YES' : 'NO'}</div>
         <div>Permission: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
         <div>Opted In: {OneSignal.User?.PushSubscription?.optedIn ? 'YES' : 'NO'}</div>
