@@ -1070,11 +1070,66 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     );
   };
 
+  // --- DEBUG: Force save OneSignal ID ---
+  const debugForceSaveId = async () => {
+    try {
+      const id = OneSignal.User?.PushSubscription?.id;
+      if (!id) {
+        alert('Error: No OneSignal ID available');
+        return;
+      }
+      const { error } = await supabase.from('profiles').update({ onesignal_id: id }).eq('id', session.user.id);
+      if (error) {
+        alert('Error: ' + error.message);
+      } else {
+        alert('Saved! ID: ' + id);
+      }
+    } catch (e) {
+      alert('Exception: ' + e.message);
+    }
+  };
+
   return (
     <>
+      {/* --- DEBUG OVERLAY (TEMPORARY) --- */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'rgba(0,0,0,0.95)',
+        color: '#0f0',
+        padding: '10px',
+        fontSize: '11px',
+        fontFamily: 'monospace',
+        zIndex: 99999,
+        borderTop: '2px solid #0f0'
+      }}>
+        <div>OneSignal Init: {oneSignalInitialized ? 'YES' : 'NO'}</div>
+        <div>Permission: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
+        <div>Opted In: {OneSignal.User?.PushSubscription?.optedIn ? 'YES' : 'NO'}</div>
+        <div>ID: {OneSignal.User?.PushSubscription?.id || 'NULL'}</div>
+        <div>User ID: {session?.user?.id || 'NULL'}</div>
+        <button
+          onClick={debugForceSaveId}
+          style={{
+            marginTop: '8px',
+            padding: '8px 16px',
+            background: '#0f0',
+            color: 'black',
+            border: 'none',
+            borderRadius: '4px',
+            fontWeight: 'bold',
+            fontSize: '12px'
+          }}
+        >
+          FORCE SAVE ID
+        </button>
+      </div>
+
       <div style={mode === 'night' ? nightStyle : morningStyle}>
         <style>{globalStyles}</style>
-       
+
        {/* --- NOTIFICATION TOAST --- */}
        {notification && ( <div style={{ position: 'fixed', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 20000, background: notification.type === 'crushed' ? '#f59e0b' : (notification.type === 'error' ? '#ef4444' : '#10b981'), padding: '12px 24px', borderRadius: '30px', color: 'white', fontWeight: 'bold', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', animation: 'fadeIn 0.3s' }}> {notification.msg} </div> )}
 
