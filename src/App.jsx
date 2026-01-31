@@ -148,6 +148,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   // --- ONESIGNAL NOTIFICATIONS ---
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [oneSignalInitialized, setOneSignalInitialized] = useState(false);
+  const [initError, setInitError] = useState('');
 
   // --- AUTO-TRIGGER ONBOARDING (Mode-Specific) ---
   // Fires when user enters a mode for the first time
@@ -243,6 +244,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
 
       } catch (error) {
         console.error('[ONESIGNAL] Init error:', error);
+        setInitError(error?.message || String(error));
         // Reset flag on error so it can retry
         oneSignalHasInitialized = false;
       }
@@ -1110,6 +1112,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         <div>Opted In: {OneSignal.User?.PushSubscription?.optedIn ? 'YES' : 'NO'}</div>
         <div>ID: {OneSignal.User?.PushSubscription?.id || 'NULL'}</div>
         <div>User ID: {session?.user?.id || 'NULL'}</div>
+        {initError && <div style={{ color: '#ff0000', marginTop: '4px' }}>Error: {initError}</div>}
         <button
           onClick={debugForceSaveId}
           style={{
