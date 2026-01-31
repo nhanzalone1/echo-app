@@ -1116,6 +1116,9 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         zIndex: 99999,
         borderTop: '2px solid #0f0'
       }}>
+        <div>Script Loaded: {typeof window !== 'undefined' && window.OneSignal ? 'YES' : 'NO'}</div>
+        <div>Worker: {typeof navigator !== 'undefined' && navigator.serviceWorker?.controller ? 'ACTIVE' : 'INACTIVE'}</div>
+        <div>Page: {typeof document !== 'undefined' ? document.title : 'N/A'}</div>
         <div>App ID: e1afb... (hardcoded)</div>
         <div>OneSignal Init: {oneSignalInitialized ? 'YES' : 'NO'}</div>
         <div>Permission: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
@@ -1123,21 +1126,36 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         <div>ID: {OneSignal.User?.PushSubscription?.id || 'NULL'}</div>
         <div>User ID: {session?.user?.id || 'NULL'}</div>
         {initError && <div style={{ color: '#ff0000', marginTop: '4px' }}>Error: {initError}</div>}
-        <button
-          onClick={debugForceSaveId}
-          style={{
-            marginTop: '8px',
-            padding: '8px 16px',
-            background: '#0f0',
-            color: 'black',
-            border: 'none',
-            borderRadius: '4px',
-            fontWeight: 'bold',
-            fontSize: '12px'
-          }}
-        >
-          FORCE SAVE ID
-        </button>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+          <button
+            onClick={debugForceSaveId}
+            style={{
+              padding: '8px 16px',
+              background: '#0f0',
+              color: 'black',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
+          >
+            FORCE SAVE ID
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '8px 16px',
+              background: '#ff0',
+              color: 'black',
+              border: 'none',
+              borderRadius: '4px',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}
+          >
+            RELOAD
+          </button>
+        </div>
       </div>
 
       <div style={mode === 'night' ? nightStyle : morningStyle}>
