@@ -660,7 +660,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic os_v2_app_4gx3ezwjbngl3g4ltpcjxqchqmckhxzv5vnutcnxq55dnf5zloh2cuxmsl2sce37howmfsgyffg7rikudtqrbh2eruebw44ndkl3a2i'
+          'Authorization': `Basic ${import.meta.env.VITE_ONESIGNAL_API_KEY}`
         },
         body: JSON.stringify({
           app_id: 'e1afb266-c90b-4cbd-9b8b-9bc49bc04783',
