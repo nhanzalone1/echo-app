@@ -189,13 +189,29 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         });
 
         console.log('[ONESIGNAL] Initialized successfully');
+
+        // Save OneSignal Player ID to Supabase profile
+        const playerId = OneSignal.User.PushSubscription.id;
+        if (playerId && session?.user?.id) {
+          console.log('[ONESIGNAL] Saving Player ID to profile:', playerId);
+          await supabase.from('profiles').update({ onesignal_id: playerId }).eq('id', session.user.id);
+        }
+
+        // Listen for subscription changes (in case user subscribes later)
+        OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
+          const newPlayerId = event.current.id;
+          if (newPlayerId && session?.user?.id) {
+            console.log('[ONESIGNAL] Subscription changed, updating Player ID:', newPlayerId);
+            await supabase.from('profiles').update({ onesignal_id: newPlayerId }).eq('id', session.user.id);
+          }
+        });
       } catch (error) {
         console.error('[ONESIGNAL] Init error:', error);
       }
     };
 
     initOneSignal();
-  }, [oneSignalInitialized]);
+  }, [oneSignalInitialized, session]);
 
   // --- FUNCTION TO REQUEST NOTIFICATION PERMISSION ---
   const requestNotificationPermission = async () => {
@@ -615,6 +631,52 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       return days;
   };
 
+  // --- SEND PARTNER NOTIFICATION (OneSignal REST API) ---
+  const sendPartnerNotification = async () => {
+    try {
+      // Must have an active partner
+      if (!currentProfile?.partner_id || currentProfile?.status !== 'active') {
+        console.log('[NOTIFY] No active partner, skipping notification');
+        return;
+      }
+
+      // Fetch partner's profile to get their OneSignal ID
+      const { data: partnerData, error } = await supabase
+        .from('profiles')
+        .select('onesignal_id')
+        .eq('id', currentProfile.partner_id)
+        .single();
+
+      if (error || !partnerData?.onesignal_id) {
+        console.log('[NOTIFY] Partner has no OneSignal ID, skipping');
+        return;
+      }
+
+      // Get user's display name (email or name)
+      const userName = currentProfile?.display_name || currentProfile?.email || session?.user?.email || 'Your partner';
+
+      // Send notification via OneSignal REST API
+      const response = await fetch('https://onesignal.com/api/v1/notifications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Basic os_v2_app_4gx3ezwjbngl3g4ltpcjxqchqmckhxzv5vnutcnxq55dnf5zloh2cuxmsl2sce37howmfsgyffg7rikudtqrbh2eruebw44ndkl3a2i'
+        },
+        body: JSON.stringify({
+          app_id: 'e1afb266-c90b-4cbd-9b8b-9bc49bc04783',
+          include_player_ids: [partnerData.onesignal_id],
+          headings: { en: 'Relay Vision' },
+          contents: { en: `${userName} just crushed their morning protocol.` }
+        })
+      });
+
+      const result = await response.json();
+      console.log('[NOTIFY] Notification sent:', result);
+    } catch (err) {
+      console.error('[NOTIFY] Error sending notification:', err);
+    }
+  };
+
   const sendInvite = async () => { if(!partnerEmail) return; const { error } = await supabase.rpc('send_ally_invite', { target_email: partnerEmail }); if (error) { showNotification(error.message, "error"); } else { showNotification("Invite Sent.", "success"); fetchProfile(); } };
   const acceptInvite = async () => { const { error } = await supabase.rpc('confirm_alliance'); if (!error) { showNotification("Alliance Established.", "success"); confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 }, colors: ['#60a5fa', '#ffffff'] }); fetchProfile(); fetchAllData(); } };
   const declineInvite = async () => { const { error } = await supabase.rpc('sever_connection'); if (!error) { showNotification("Connection Severed.", "neutral"); fetchProfile(); } };
@@ -782,7 +844,11 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       setMyMissions(nextMissions);
       // Update historyData for calendar colors
       setHistoryData(historyData.map(m => m.id === mission.id ? { ...m, ...updates } : m));
-      if(newCrushed) setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]);
+      if(newCrushed) {
+        setCrushedHistory([ { ...mission, ...updates }, ...crushedHistory ]);
+        // Send push notification to partner
+        sendPartnerNotification();
+      }
       else setCrushedHistory(crushedHistory.filter(m => m.id !== mission.id));
     }
   };
