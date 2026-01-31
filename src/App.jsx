@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
 import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText, Clock, Rocket, Bell, BellOff } from 'lucide-react';
-import OneSignal from 'react-onesignal';
 import confetti from 'canvas-confetti';
 import { Reorder, useDragControls } from "framer-motion";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -183,122 +182,107 @@ function VisionBoard({ session, onOpenSystemGuide }) {
     }
   };
 
-  // --- ONESIGNAL INITIALIZATION ---
+  // --- ONESIGNAL INITIALIZATION (MANUAL INJECTION - CACHE BUSTER) ---
   useEffect(() => {
-    const ONESIGNAL_APP_ID = 'e1afb266-c90b-4cbd-9b8b-9bc49bc04783';
-    const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+    // Prevent double init in React Strict Mode
+    if (oneSignalHasInitialized || oneSignalInitialized) {
+      console.log('[ONESIGNAL] Already initialized, skipping');
+      return;
+    }
 
-    // Helper: Load OneSignal SDK script dynamically
-    const loadOneSignalScript = () => {
-      return new Promise((resolve, reject) => {
-        // Check if already loaded
-        if (window.OneSignal) {
-          console.log('[ONESIGNAL] Script already loaded');
-          resolve();
-          return;
+    // Check if script already loaded
+    if (window.OneSignal) {
+      console.log('[ONESIGNAL] window.OneSignal already exists');
+      return;
+    }
+
+    // Set flag immediately
+    oneSignalHasInitialized = true;
+    console.log('[ONESIGNAL] Starting manual script injection...');
+
+    // Create script with cache-busting timestamp
+    const script = document.createElement('script');
+    script.src = `https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js?v=${Date.now()}`;
+    script.async = true;
+
+    script.onerror = () => {
+      console.error('[ONESIGNAL] Script failed to load');
+      setInitError('Script failed to load from CDN');
+      oneSignalHasInitialized = false;
+    };
+
+    script.onload = () => {
+      console.log('[ONESIGNAL] Script loaded, initializing via OneSignalDeferred...');
+
+      // OneSignal v16 uses a deferred pattern
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async (OneSignal) => {
+        try {
+          console.log('[ONESIGNAL] Running deferred init...');
+
+          await OneSignal.init({
+            appId: 'e1afb266-c90b-4cbd-9b8b-9bc49bc04783',
+            safari_web_id: 'web.onesignal.auto.646a746a-7347-4952-9576-96357416353d',
+            serviceWorkerParam: { scope: '/' },
+            serviceWorkerPath: 'OneSignalSDKWorker.js',
+            allowLocalhostAsSecureOrigin: true,
+            notifyButton: { enable: false }
+          });
+
+          setOneSignalInitialized(true);
+          console.log('[ONESIGNAL] Initialized successfully!');
+
+          // Check current permission status
+          const permission = await OneSignal.Notifications.permission;
+          setNotificationsEnabled(permission);
+          console.log('[ONESIGNAL] Permission:', permission);
+
+          // Check if already subscribed
+          const isSubscribed = OneSignal.User.PushSubscription.optedIn;
+          console.log('[ONESIGNAL] Opted In:', isSubscribed);
+
+          if (isSubscribed) {
+            const existingId = OneSignal.User.PushSubscription.id;
+            console.log('[ONESIGNAL] Existing ID:', existingId);
+            if (existingId) {
+              await saveOneSignalId(existingId);
+            }
+          }
+
+          // Listen for subscription changes
+          OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
+            console.log('[ONESIGNAL] Subscription changed:', event);
+            const newId = event.current?.id;
+            const optedIn = event.current?.optedIn;
+
+            if (newId && optedIn) {
+              await saveOneSignalId(newId);
+            }
+          });
+
+          // Listen for permission changes
+          OneSignal.Notifications.addEventListener('permissionChange', (granted) => {
+            console.log('[ONESIGNAL] Permission changed:', granted);
+            setNotificationsEnabled(granted);
+          });
+
+        } catch (error) {
+          console.error('[ONESIGNAL] Init error:', error);
+          try {
+            setInitError(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+          } catch {
+            setInitError(error?.message || String(error));
+          }
+          oneSignalHasInitialized = false;
         }
-
-        console.log('[ONESIGNAL] Injecting script dynamically...');
-        const script = document.createElement('script');
-        script.src = ONESIGNAL_SDK_URL;
-        script.async = true;
-        script.onload = () => {
-          console.log('[ONESIGNAL] Script loaded successfully');
-          resolve();
-        };
-        script.onerror = (err) => {
-          console.error('[ONESIGNAL] Script failed to load');
-          reject(new Error('Failed to load OneSignal SDK script'));
-        };
-        document.head.appendChild(script);
       });
     };
 
-    // Main init function
-    const initOneSignal = async () => {
-      // Use module-level flag to prevent double init in React Strict Mode
-      if (oneSignalHasInitialized || oneSignalInitialized) {
-        console.log('[ONESIGNAL] Already initialized, skipping');
-        return;
-      }
+    // Append to head to start loading
+    document.head.appendChild(script);
+    console.log('[ONESIGNAL] Script tag appended to head');
 
-      // Set flag immediately to prevent race conditions
-      oneSignalHasInitialized = true;
-
-      try {
-        // Step 1: Ensure script is loaded
-        await loadOneSignalScript();
-
-        // Step 2: Wait a tick for window.OneSignal to be ready
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        if (!window.OneSignal) {
-          throw new Error('window.OneSignal is undefined after script load');
-        }
-
-        console.log('[ONESIGNAL] Starting initialization with App ID:', ONESIGNAL_APP_ID);
-        await window.OneSignal.init({
-          appId: ONESIGNAL_APP_ID,
-          safari_web_id: "web.onesignal.auto.1afb9025-a2b0-4a54-8c00-23b218b2b39b",
-          serviceWorkerParam: { scope: '/' },
-          serviceWorkerPath: 'OneSignalSDKWorker.js',
-          allowLocalhostAsSecureOrigin: true,
-          notifyButton: { enable: false }
-        });
-
-        setOneSignalInitialized(true);
-        console.log('[ONESIGNAL] Initialized successfully');
-
-        // Check current permission status
-        const permission = await window.OneSignal.Notifications.permission;
-        setNotificationsEnabled(permission);
-        console.log('[ONESIGNAL] Current permission:', permission);
-
-        // Check if user is already subscribed and has an ID
-        const isSubscribed = window.OneSignal.User.PushSubscription.optedIn;
-        console.log('[ONESIGNAL] Already subscribed:', isSubscribed);
-
-        if (isSubscribed) {
-          const existingId = window.OneSignal.User.PushSubscription.id;
-          console.log('[ONESIGNAL] Existing subscription ID:', existingId);
-          if (existingId) {
-            await saveOneSignalId(existingId);
-          }
-        }
-
-        // Listen for subscription changes (when user clicks Allow)
-        window.OneSignal.User.PushSubscription.addEventListener('change', async (event) => {
-          console.log('[ONESIGNAL] Subscription changed:', event);
-          const newId = event.current?.id;
-          const optedIn = event.current?.optedIn;
-          console.log('[ONESIGNAL] New ID:', newId, 'Opted In:', optedIn);
-
-          if (newId && optedIn) {
-            await saveOneSignalId(newId);
-          }
-        });
-
-        // Listen for permission changes
-        window.OneSignal.Notifications.addEventListener('permissionChange', (granted) => {
-          console.log('[ONESIGNAL] Permission changed:', granted);
-          setNotificationsEnabled(granted);
-        });
-
-      } catch (error) {
-        console.error('[ONESIGNAL] Init error:', error);
-        // Capture full error details for debugging
-        try {
-          setInitError(JSON.stringify(error, Object.getOwnPropertyNames(error)));
-        } catch {
-          setInitError(error?.message || String(error));
-        }
-        // Reset flag on error so it can retry
-        oneSignalHasInitialized = false;
-      }
-    };
-
-    initOneSignal();
-  }, [oneSignalInitialized, session]);
+  }, [session]);
 
   // --- FUNCTION TO REQUEST NOTIFICATION PERMISSION ---
   const requestNotificationPermission = async () => {
@@ -1154,15 +1138,14 @@ function VisionBoard({ session, onOpenSystemGuide }) {
         zIndex: 99999,
         borderTop: '2px solid #0f0'
       }}>
-        <div>Script Loaded: {typeof window !== 'undefined' && window.OneSignal ? 'YES' : 'NO'}</div>
-        <div>Worker: {typeof navigator !== 'undefined' && navigator.serviceWorker?.controller ? 'ACTIVE' : 'INACTIVE'}</div>
-        <div>Page: {typeof document !== 'undefined' ? document.title : 'N/A'}</div>
-        <div>App ID: e1afb... (hardcoded)</div>
-        <div>OneSignal Init: {oneSignalInitialized ? 'YES' : 'NO'}</div>
+        <div style={{ color: '#ff0', fontWeight: 'bold' }}>== MANUAL INJECTION MODE ==</div>
+        <div>Global Obj: {typeof window !== 'undefined' && window.OneSignal ? 'YES' : 'NO'}</div>
+        <div>Deferred Queue: {typeof window !== 'undefined' && window.OneSignalDeferred ? 'YES' : 'NO'}</div>
+        <div>Init Complete: {oneSignalInitialized ? 'YES' : 'NO'}</div>
         <div>Permission: {typeof Notification !== 'undefined' ? Notification.permission : 'N/A'}</div>
         <div>Opted In: {window.OneSignal?.User?.PushSubscription?.optedIn ? 'YES' : 'NO'}</div>
-        <div>ID: {window.OneSignal?.User?.PushSubscription?.id || 'NULL'}</div>
-        <div>User ID: {session?.user?.id || 'NULL'}</div>
+        <div>Player ID: {window.OneSignal?.User?.PushSubscription?.id || 'NULL'}</div>
+        <div>User: {session?.user?.id?.slice(0,8) || 'NULL'}...</div>
         {initError && <div style={{ color: '#ff0000', marginTop: '4px' }}>Error: {initError}</div>}
         <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
           <button
