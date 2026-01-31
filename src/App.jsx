@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from './supabaseClient';
-import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText, Clock, Rocket } from 'lucide-react';
+import { Moon, Sun, Archive, Target, Flame, LogOut, Lock, Mic, Video, Camera, X, Square, ListTodo, Quote as QuoteIcon, CheckSquare, Plus, Eye, RotateCcw, Trophy, ArrowLeft, Eraser, RefreshCcw, Trash2, ShieldCheck, AlertCircle, Edit3, Fingerprint, GripVertical, History, Users, Link as LinkIcon, Check, XCircle, MessageCircle, Heart, Send, Unlock, Save, Calendar, Upload, Image as ImageIcon, Settings, ChevronRight, Menu, HelpCircle, BarChart3, Terminal, ClipboardList, LayoutGrid, FileText, Clock, Rocket, Bell, BellOff } from 'lucide-react';
+import OneSignal from 'react-onesignal';
 import confetti from 'canvas-confetti';
 import { Reorder, useDragControls } from "framer-motion";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -141,6 +142,10 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const [modalTab, setModalTab] = useState('mission');
   const [showManifestReview, setShowManifestReview] = useState(false); // The Checkout Screen
 
+  // --- ONESIGNAL NOTIFICATIONS ---
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [oneSignalInitialized, setOneSignalInitialized] = useState(false);
+
   // --- AUTO-TRIGGER ONBOARDING (Mode-Specific) ---
   // Fires when user enters a mode for the first time
   useEffect(() => {
@@ -158,6 +163,73 @@ function VisionBoard({ session, onOpenSystemGuide }) {
       }
     }
   }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- ONESIGNAL INITIALIZATION ---
+  useEffect(() => {
+    const initOneSignal = async () => {
+      if (oneSignalInitialized) return;
+
+      try {
+        await OneSignal.init({
+          appId: "e1afb266-c90b-4cbd-9b8b-9bc49bc04783",
+          safari_web_id: "web.onesignal.auto.1afb9025-a2b0-4a54-8c00-23b218b2b39b",
+          allowLocalhostAsSecureOrigin: true,
+          notifyButton: { enable: false }
+        });
+
+        setOneSignalInitialized(true);
+
+        // Check current permission status
+        const permission = await OneSignal.Notifications.permission;
+        setNotificationsEnabled(permission);
+
+        // Listen for permission changes
+        OneSignal.Notifications.addEventListener('permissionChange', (granted) => {
+          setNotificationsEnabled(granted);
+        });
+
+        console.log('[ONESIGNAL] Initialized successfully');
+      } catch (error) {
+        console.error('[ONESIGNAL] Init error:', error);
+      }
+    };
+
+    initOneSignal();
+  }, [oneSignalInitialized]);
+
+  // --- FUNCTION TO REQUEST NOTIFICATION PERMISSION ---
+  const requestNotificationPermission = async () => {
+    console.log('[ONESIGNAL] Requesting permission...');
+    console.log('[ONESIGNAL] Initialized:', oneSignalInitialized);
+
+    try {
+      if (!oneSignalInitialized) {
+        console.log('[ONESIGNAL] Not initialized yet, trying native prompt...');
+        // Fallback to native browser notification
+        const permission = await Notification.requestPermission();
+        console.log('[ONESIGNAL] Native permission result:', permission);
+        if (permission === 'granted') {
+          setNotificationsEnabled(true);
+        }
+        return;
+      }
+
+      console.log('[ONESIGNAL] Calling OneSignal.Notifications.requestPermission()...');
+      await OneSignal.Notifications.requestPermission();
+      console.log('[ONESIGNAL] Permission request completed');
+    } catch (error) {
+      console.error('[ONESIGNAL] Permission request error:', error);
+      // Fallback to native
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          setNotificationsEnabled(true);
+        }
+      } catch (e) {
+        console.error('[ONESIGNAL] Native fallback also failed:', e);
+      }
+    }
+  };
 
   // --- SCHEDULE STATES ---
   const [showScheduleSettings, setShowScheduleSettings] = useState(false);
@@ -965,7 +1037,7 @@ function VisionBoard({ session, onOpenSystemGuide }) {
        {cheerModal.isOpen && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.8)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '2px solid #16a34a', boxShadow: '0 0 40px rgba(22, 163, 74, 0.3)' }}> <MessageCircle size={48} color="#22c55e" style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '20px', fontWeight: 'bold' }}>Send a Boost</h3> <input type="text" placeholder="Keep pushing..." value={cheerInput} onChange={(e) => setCheerInput(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#0f172a', border: '1px solid #334155', color: 'white', marginBottom: '20px', outline: 'none', textAlign: 'center' }} /> <div style={{ display: 'flex', gap: '10px' }}> <button onClick={() => setCheerModal({ isOpen: false, missionId: null })} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button> <button onClick={submitCheer} style={{ flex: 1, padding: '12px', borderRadius: '16px', border: 'none', background: '#16a34a', color: 'white', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>Send <Send size={14}/></button> </div> </div> </div> )}
        {partnerModal && ( <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}> <div style={{ background: '#1e293b', padding: '30px', borderRadius: '24px', width: '90%', maxWidth: '340px', textAlign: 'center', border: '1px solid #334155', boxShadow: '0 0 40px rgba(0,0,0,0.5)' }}> <Users size={48} color={currentProfile?.status === 'active' ? '#10b981' : '#60a5fa'} style={{ marginBottom: '20px' }} /> <h3 style={{ margin: '0 0 10px 0', color: 'white', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>Ally Protocol</h3> {currentProfile?.status === 'active' && ( <> <p style={{ color: '#10b981', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: ACTIVE</p> <div style={{ background: '#0f172a', padding: '15px', borderRadius: '12px', marginBottom: '20px' }}> <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>LINKED PARTNER:</p> <p style={{ color: 'white', fontWeight: 'bold', margin: '5px 0 0 0' }}>{currentProfile.partner_email}</p> </div> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> SEVER CONNECTION </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id === session.user.id && ( <> <p style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>STATUS: PENDING ACCEPTANCE</p> <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>Invitation sent to <b>{currentProfile.partner_email}</b>. Waiting for them to confirm.</p> <button onClick={declineInvite} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: '#334155', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}> CANCEL INVITE </button> </> )} {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <> <p style={{ color: '#f97316', fontWeight: 'bold', fontSize: '14px', marginBottom: '20px' }}>INCOMING REQUEST</p> <p style={{ color: 'white', fontSize: '16px', marginBottom: '20px' }}><b>{currentProfile.partner_email}</b> wants to link protocols.</p> <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}> <button onClick={acceptInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#10b981', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><Check size={20} /></button> <button onClick={declineInvite} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}><XCircle size={20} /></button> </div> </> )} {!currentProfile?.partner_id && ( <> <p style={{ margin: '0 0 20px 0', color: '#cbd5e1', fontSize: '14px' }}> "Iron sharpens iron. Link with one partner to see their visions." </p> <input type="email" placeholder="Partner Email" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#334155', border: '1px solid #475569', color: 'white', marginBottom: '20px', outline: 'none' }} /> <button onClick={sendInvite} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: 'none', background: '#3b82f6', color: 'white', fontWeight: '900', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}> <LinkIcon size={16} /> SEND INVITE </button> </> )} <button onClick={() => setPartnerModal(false)} style={{ width: '100%', padding: '12px', borderRadius: '16px', border: 'none', background: 'transparent', color: '#64748b', fontWeight: 'bold', cursor: 'pointer', fontSize: '14px' }}> CLOSE </button> </div> </div> )}
 
-       <div style={{ position: 'absolute', top: '60px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+       <div style={{ position: 'absolute', top: '60px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
           
           {/* --- TOP LEFT: IDENTITY & MENU --- */}
           <div style={{ position: 'relative' }} ref={menuRef}>
@@ -1031,9 +1103,44 @@ function VisionBoard({ session, onOpenSystemGuide }) {
               >
                 <HelpCircle size={14} /> How It Works
               </button>
+              {/* Notification Bell - only show if not yet enabled */}
+              {!notificationsEnabled && (
+                <button
+                  onClick={() => {
+                    console.log('[BELL] Clicked!');
+                    requestNotificationPermission();
+                  }}
+                  style={{
+                    border: 'none',
+                    background: mode === 'night' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                    borderRadius: '50%',
+                    padding: '10px',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    zIndex: 999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Enable Notifications"
+                >
+                  <Bell size={20} color={mode === 'night' ? '#fbbf24' : '#f59e0b'} />
+                  <div style={{
+                    position: 'absolute',
+                    top: '4px',
+                    right: '4px',
+                    width: '8px',
+                    height: '8px',
+                    background: '#ef4444',
+                    borderRadius: '50%',
+                    border: mode === 'night' ? '2px solid #1f1f22' : '2px solid #fdfbf7',
+                    pointerEvents: 'none'
+                  }} />
+                </button>
+              )}
               <div style={{ position: 'relative' }}>
-                <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}> 
-                  <Users size={20} color={mode === 'night' ? 'white' : 'black'} /> 
+                <button onClick={() => setPartnerModal(true)} style={{ border: 'none', background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '8px', cursor: 'pointer', color: mode === 'night' ? '#64748b' : '#334155' }}>
+                  <Users size={20} color={mode === 'night' ? 'white' : 'black'} />
                 </button> 
                 {currentProfile?.status === 'pending' && currentProfile?.initiator_id !== session.user.id && ( <div style={{ position: 'absolute', top: 0, right: 0, width: '10px', height: '10px', background: '#ef4444', borderRadius: '50%', border: '2px solid #1f1f22' }}></div> )} 
               </div>
