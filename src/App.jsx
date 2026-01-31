@@ -860,8 +860,8 @@ function VisionBoard({ session, onOpenSystemGuide }) {
   const getGoalColor = (id) => { const g = myGoals.find(g => g.id === id); if(g) return g.color; const pg = partnerGoals.find(g => g.id === id); return pg ? pg.color : '#94a3b8'; }
   const getGoalTitle = (id) => { const g = myGoals.find(g => g.id === id); if(g) return g.title; const pg = partnerGoals.find(g => g.id === id); return pg ? pg.title : 'General'; }
   const randomQuote = myThoughts.filter(t => t.is_quote && !t.archived).length > 0 ? myThoughts.filter(t => t.is_quote && !t.archived)[Math.floor(Math.random() * myThoughts.filter(t => t.is_quote && !t.archived).length)] : null;
-  const nightStyle = { background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', color: 'white', minHeight: '100dvh', height: '100dvh', padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
-  const morningStyle = { background: 'linear-gradient(135deg, #fdfbf7 0%, #e2e8f0 100%)', color: 'black', minHeight: '100dvh', height: '100dvh', padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
+  const nightStyle = { background: 'radial-gradient(circle at center, #1f1f22 0%, #000000 100%)', color: 'white', minHeight: '100vh', padding: '20px', paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', alignItems: 'center' };
+  const morningStyle = { background: 'linear-gradient(135deg, #fdfbf7 0%, #e2e8f0 100%)', color: 'black', minHeight: '100vh', padding: '24px', paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column' };
   const getDisplayedThoughts = () => { const relevant = myThoughts.filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id); return relevant.filter(t => showArchives ? t.archived : !t.archived); };
   const getPartnerDisplayedThoughts = () => { const relevant = partnerThoughts.filter(t => viewingGoal === 'all' ? true : t.goal_id === viewingGoal.id); return relevant.filter(t => !t.archived); };
   
